@@ -1,0 +1,18 @@
+{
+  "domain": "ha_avpro_edge",
+  "name": "AVPro Edge",
+  "codeowners": [
+    "@ajguerre1"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/ajguerre1/ha-avpro-edge",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/ajguerre1/ha-avpro-edge/issues",
+  "loggers": [
+    "custom_components.ha_avpro_edge"
+  ],
+  "requirements": [],
+  "version": "0.1.0"
+}

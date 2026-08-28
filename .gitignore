@@ -1,0 +1,39 @@
+# Editor and assistant scratch — not part of the project history
+*-local/
+
+# Local-only working copies that legitimately contain real hosts, MAC addresses, room names
+# and source labels. THIS REPO IS PUBLIC. The site-term denylist that tests/test_no_site_data.py
+# greps against lives here too, so the denylist itself never enters the repo.
+local/
+
+# Live probe output. Every status CGI on this device echoes the owner's port names, and
+# NETDivSta.CGI carries the LAN IP and MAC. Sanitised fixtures live in tests/fixtures/ and ARE
+# committed; raw captures are not.
+scripts/output/
+*.raw.log
+secrets.yaml
+secrets.local.json
+**/secrets.local.json
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store

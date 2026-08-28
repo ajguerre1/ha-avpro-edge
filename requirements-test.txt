@@ -1,0 +1,21 @@
+# Test dependencies.
+#
+# pytest-homeassistant-custom-component pulls in Home Assistant itself, which cannot be
+# imported on Windows (homeassistant.runner imports POSIX-only fcntl). It is therefore
+# exercised in CI (Ubuntu) rather than on the Windows dev box. Everything under
+# custom_components/ha_avpro_edge/avpro/ has no Home Assistant imports and its tests run
+# anywhere.
+
+pytest>=8.0
+pytest-asyncio>=0.24
+ruff>=0.7
+
+# aiohttp backs both the vendored client and tools/fake_avpro.py (the fake device is an
+# aiohttp.web app, so the fake needs no dependency of its own). Home Assistant ships aiohttp,
+# so it is NOT a runtime requirement and manifest.json still declares requirements: []. It is
+# declared here because it would otherwise arrive only through
+# pytest-homeassistant-custom-component -- the one dependency deliberately unusable on the
+# Windows dev box -- and tests/ is supposed to run anywhere.
+aiohttp>=3.9
+
+pytest-homeassistant-custom-component>=0.13
