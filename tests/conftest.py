@@ -35,4 +35,7 @@ def _home_assistant_is_importable() -> bool:
 #: Skip the Home Assistant-dependent suite where Home Assistant cannot be imported, so that a
 #: plain ``pytest tests/`` works on the development box without remembering a flag. In CI, where
 #: Home Assistant is installed, nothing is skipped.
-collect_ignore_glob: list[str] = [] if _home_assistant_is_importable() else ["ha/*"]
+#:
+#: The whole directory is named rather than a glob inside it: a glob still lets pytest descend far
+#: enough to load ``tests/ha/conftest.py``, which is itself the thing that cannot be imported.
+collect_ignore: list[str] = [] if _home_assistant_is_importable() else ["ha"]
