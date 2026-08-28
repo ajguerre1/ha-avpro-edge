@@ -17,3 +17,10 @@ ignore = ["B008"]  # Home Assistant config-flow style relies on calls in argumen
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# pytest-socket arrives with pytest-homeassistant-custom-component and blocks sockets for the
+# whole session in CI. Modules that drive the real client against the fake device opt back in
+# with this marker. It is registered here so those modules do not warn on the development box,
+# where pytest-socket is not installed at all.
+markers = [
+  "enable_socket: this module opens real loopback sockets against tools/fake_avpro.py",
+]

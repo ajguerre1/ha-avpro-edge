@@ -1,0 +1,75 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to your AVPro Edge matrix",
+        "description": "Enter the address of the matrix. You can paste it straight from your browser.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "The matrix's IP address or hostname, for example 192.0.2.10."
+        }
+      },
+      "reconfigure": {
+        "title": "Change the matrix address",
+        "description": "Point this entry at a new address. It must still be the same matrix.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "The matrix's new IP address or hostname."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach that address. Check that the matrix is powered on and on the same network.",
+      "not_avpro": "Something answered at that address, but it is not an AVPro Edge matrix.",
+      "unexpected_response": "The matrix replied in a way that could not be read. This usually means one of its port names contains an '&', which the matrix's own interface cannot encode. Rename that port from the matrix's web page and try again.",
+      "unknown": "Unexpected error. Check the Home Assistant log for details."
+    },
+    "abort": {
+      "already_configured": "This matrix is already set up.",
+      "reconfigure_successful": "The address was updated.",
+      "wrong_device": "That address belongs to a different matrix. To add it, create a new entry instead."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "AVPro Edge options",
+        "data": {
+          "polling_profile": "Polling profile",
+          "allow_writes": "Allow changes to the matrix"
+        },
+        "data_description": {
+          "polling_profile": "How often the matrix is checked for changes made elsewhere, such as from its front panel or another control system.",
+          "allow_writes": "Turn this off to make the integration read-only. Useful while you watch it run alongside an existing control system."
+        }
+      }
+    }
+  },
+  "selector": {
+    "polling_profile": {
+      "options": {
+        "responsive": "Responsive (every 3 seconds)",
+        "balanced": "Balanced (every 5 seconds)",
+        "gentle": "Gentle (every 15 seconds)"
+      }
+    }
+  },
+  "exceptions": {
+    "writes_disabled": {
+      "message": "Changes are disabled for this matrix. Turn on \"Allow changes to the matrix\" in the integration options."
+    },
+    "command_unsupported": {
+      "message": "The matrix does not support that command on its current firmware."
+    },
+    "cannot_connect": {
+      "message": "Could not reach the matrix at {host}."
+    },
+    "invalid_port_name": {
+      "message": "That port name cannot be used: {reason}."
+    }
+  }
+}
