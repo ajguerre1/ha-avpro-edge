@@ -53,13 +53,23 @@ async def fake() -> FakeMatrix:
         yield matrix
 
 
-def make_entry(host: str, **options: Any) -> MockConfigEntry:
+#: The MAC the fake matrix reports, formatted the way Home Assistant stores one.
+FAKE_MAC = "aa:bb:cc:dd:ee:ff"
+
+
+def make_entry(host: str, *, unique_id: str = FAKE_MAC, **options: Any) -> MockConfigEntry:
+    """Build an unloaded entry.
+
+    ``unique_id`` is a constructor argument rather than something to assign afterwards:
+    ``MockConfigEntry`` refuses direct assignment, since in production it may only change through
+    ``async_update_entry``.
+    """
     return MockConfigEntry(
         domain=DOMAIN,
         title="AC-MX44-AUHD",
         data={CONF_HOST: host},
         options=options,
-        unique_id="aa:bb:cc:dd:ee:ff",
+        unique_id=unique_id,
     )
 
 

@@ -177,8 +177,7 @@ async def test_reconfigure_updates_the_address(hass: HomeAssistant, fake) -> Non
 
 async def test_reconfigure_refuses_a_different_matrix(hass: HomeAssistant, fake) -> None:
     """Silently re-targeting an entry would repoint every entity at another set of rooms."""
-    entry = make_entry("127.0.0.1:1")
-    entry.unique_id = "11:22:33:44:55:66"
+    entry = make_entry("127.0.0.1:1", unique_id="11:22:33:44:55:66")
     entry.add_to_hass(hass)
 
     result = await entry.start_reconfigure_flow(hass)

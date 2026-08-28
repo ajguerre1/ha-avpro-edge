@@ -28,7 +28,7 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.event import async_call_later
@@ -381,7 +381,15 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
             self.hass, WRITE_SETTLE_WINDOW + WRITE_EXPIRY_MARGIN, self._sweep_expired
         )
 
+    @callback
     def _sweep_expired(self, _now: Any) -> None:
+        """Hand authority back to the device for anything that never got confirmed.
+
+        ``@callback`` is required, not decorative: without it Home Assistant treats this as a
+        blocking function and may run it in an executor thread, and the
+        ``async_update_listeners`` below then reaches ``async_write_ha_state`` off the event
+        loop. Home Assistant's thread-safety check catches that and raises.
+        """
         self._cancel_expiry = None
         expired = self.pending.expire()
         if not expired:
