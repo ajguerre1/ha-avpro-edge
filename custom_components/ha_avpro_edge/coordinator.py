@@ -46,6 +46,7 @@ from .avpro.models import (
     BindMode,
     ImageEnhancement,
     ScalerMode,
+    edid_command,
 )
 from .avpro.pending import PendingWrites
 from .avpro.protocol import CommandEndpoint, ParsedStatus, ParseOutcome, StatusEndpoint
@@ -56,6 +57,7 @@ from .const import (
     KEY_AUDIO_DELAY,
     KEY_AUDIO_ROUTE,
     KEY_BIND_MODE,
+    KEY_EDID,
     KEY_EXTRACTED_AUDIO,
     KEY_IMAGE_ENHANCEMENT,
     KEY_SCALER,
@@ -219,6 +221,7 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
             KEY_SCALER: state.scaler_modes,
             KEY_IMAGE_ENHANCEMENT: state.image_enhancements,
             KEY_TEST_PATTERN: state.test_patterns,
+            KEY_EDID: state.edid,
         }
         values = series.get(kind)
         if values is None or not 0 <= position < len(values):
@@ -333,6 +336,10 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
                 )
             case s if s == KEY_TEST_PATTERN:
                 return CommandEndpoint.SYSTEM, p.test_pattern(port, bool(value))
+            case s if s == KEY_EDID:
+                # EDID is the one setting whose read and write vocabularies are identical, so the
+                # token goes back out exactly as it came in.
+                return CommandEndpoint.EDID, edid_command(str(value), port)
             case _:
                 raise HomeAssistantError(f"No command is defined for {key!r}")
 

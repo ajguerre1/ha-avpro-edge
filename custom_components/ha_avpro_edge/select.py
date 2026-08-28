@@ -21,12 +21,13 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AvProConfigEntry
-from .avpro.models import AudioDelay, BindMode, ImageEnhancement, ScalerMode
+from .avpro.models import EDID_OPTIONS, AudioDelay, BindMode, ImageEnhancement, ScalerMode
 from .avpro.state import MatrixState
 from .const import (
     KEY_AUDIO_DELAY,
     KEY_AUDIO_ROUTE,
     KEY_BIND_MODE,
+    KEY_EDID,
     KEY_IMAGE_ENHANCEMENT,
     KEY_SCALER,
     port_key,
@@ -86,6 +87,18 @@ PER_OUTPUT: tuple[AvProSelectDescription, ...] = (
     ),
 )
 
+#: Per *input*, not per output: an EDID tells a source what the display can accept.
+PER_INPUT: tuple[AvProSelectDescription, ...] = (
+    AvProSelectDescription(
+        key=KEY_EDID,
+        kind=KEY_EDID,
+        translation_key="edid",
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        options_for=lambda _state: list(EDID_OPTIONS),
+    ),
+)
+
 DEVICE_LEVEL = AvProSelectDescription(
     key=KEY_BIND_MODE,
     kind=KEY_BIND_MODE,
@@ -105,9 +118,10 @@ async def async_setup_entry(
     ports = coordinator.matrix.port_count
 
     entities: list[AvProSelect] = [
-        AvProSelect(coordinator, description, output)
-        for description in PER_OUTPUT
-        for output in range(1, ports + 1)
+        AvProSelect(coordinator, description, index)
+        for group in (PER_OUTPUT, PER_INPUT)
+        for description in group
+        for index in range(1, ports + 1)
     ]
     entities.append(AvProSelect(coordinator, DEVICE_LEVEL, None))
     async_add_entities(entities)

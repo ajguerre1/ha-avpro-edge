@@ -154,6 +154,70 @@ CODE_BY_BIND_MODE: Final[dict[BindMode, int]] = {v: k for k, v in BIND_MODE_BY_C
 
 
 # ---------------------------------------------------------------------------------------------
+# EDID -- wire tokens are the same in both directions
+# ---------------------------------------------------------------------------------------------
+#
+# Unlike every other setting here, EDID is not a small integer. The status endpoint returns a
+# token such as ``EDIDU1`` and a write sends ``<token>IN<input>``, so the read and write
+# vocabularies are identical -- the device's own web UI stores the token as the option value and
+# echoes it straight back. That is why these are carried verbatim rather than decoded into an
+# index: there is nothing to decode.
+#
+# Three families:
+#   EDIDD1..EDIDD30  fixed presets, resolution + audio channels + optional HDR
+#   EDIDU1..EDIDU3   the three user EDID buffers
+#   EDIDO1..EDIDO4   copy the EDID of the display on that output
+#
+# The telnet reference numbers the presets 0-32 (30 fixed + 3 user) and treats copy-from-output as
+# a separate command; the totals agree, which is the cross-check that these 37 are the whole set.
+
+EDID_OPTIONS: Final[dict[str, str]] = {
+    "EDIDD1": "1080P 2CH",
+    "EDIDD2": "1080P 6CH",
+    "EDIDD3": "1080P 8CH",
+    "EDIDD4": "1080P 3D 2CH",
+    "EDIDD5": "1080P 3D 6CH",
+    "EDIDD6": "1080P 3D 8CH",
+    "EDIDD7": "4K30HZ 3D 2CH",
+    "EDIDD8": "4K30HZ 3D 6CH",
+    "EDIDD9": "4K30HZ 3D 8CH",
+    "EDIDD10": "4K60HZ(Y420) 3D 2CH",
+    "EDIDD11": "4K60HZ(Y420) 3D 6CH",
+    "EDIDD12": "4K60HZ(Y420) 3D 8CH",
+    "EDIDD13": "4K60HZ 3D 2CH",
+    "EDIDD14": "4K60HZ 3D 6CH",
+    "EDIDD15": "4K60HZ 3D 8CH",
+    "EDIDD16": "1080P 2CH HDR",
+    "EDIDD17": "1080P 6CH HDR",
+    "EDIDD18": "1080P 8CH HDR",
+    "EDIDD19": "1080P 3D 2CH HDR",
+    "EDIDD20": "1080P 3D 6CH HDR",
+    "EDIDD21": "1080P 3D 8CH HDR",
+    "EDIDD22": "4K30HZ 3D 2CH HDR",
+    "EDIDD23": "4K30HZ 3D 6CH HDR",
+    "EDIDD24": "4K30HZ 3D 8CH HDR",
+    "EDIDD25": "4K60HZ(Y420) 3D 2CH HDR",
+    "EDIDD26": "4K60HZ(Y420) 3D 6CH HDR",
+    "EDIDD27": "4K60HZ(Y420) 3D 8CH HDR",
+    "EDIDD28": "4K60HZ 3D 2CH HDR",
+    "EDIDD29": "4K60HZ 3D 6CH HDR",
+    "EDIDD30": "4K60HZ 3D 8CH HDR",
+    "EDIDU1": "User1 EDID",
+    "EDIDU2": "User2 EDID",
+    "EDIDU3": "User3 EDID",
+    "EDIDO1": "Copy From Out1",
+    "EDIDO2": "Copy From Out2",
+    "EDIDO3": "Copy From Out3",
+    "EDIDO4": "Copy From Out4",
+}
+
+
+def edid_command(token: str, source: int) -> str:
+    """``("EDIDU1", 3)`` -> ``"EDIDU1IN3"`` -- assign an EDID to an input."""
+    return f"{token}IN{source}"
+
+
+# ---------------------------------------------------------------------------------------------
 # Generic helpers
 # ---------------------------------------------------------------------------------------------
 

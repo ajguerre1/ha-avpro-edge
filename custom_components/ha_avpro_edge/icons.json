@@ -20,6 +20,9 @@
       },
       "bind_mode": {
         "default": "mdi:link-variant"
+      },
+      "edid": {
+        "default": "mdi:monitor-eye"
       }
     },
     "switch": {
