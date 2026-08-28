@@ -171,7 +171,8 @@ CODE_BY_BIND_MODE: Final[dict[BindMode, int]] = {v: k for k, v in BIND_MODE_BY_C
 # The telnet reference numbers the presets 0-32 (30 fixed + 3 user) and treats copy-from-output as
 # a separate command; the totals agree, which is the cross-check that these 37 are the whole set.
 
-EDID_OPTIONS: Final[dict[str, str]] = {
+#: What the device calls each EDID, keyed by its wire token. Verbatim from the unit's own web UI.
+EDID_LABEL_BY_TOKEN: Final[dict[str, str]] = {
     "EDIDD1": "1080P 2CH",
     "EDIDD2": "1080P 6CH",
     "EDIDD3": "1080P 8CH",
@@ -211,10 +212,46 @@ EDID_OPTIONS: Final[dict[str, str]] = {
     "EDIDO4": "Copy From Out4",
 }
 
+#: Wire-token family letter -> the option-key prefix it becomes.
+_EDID_FAMILIES: Final[dict[str, str]] = {"D": "preset", "U": "user", "O": "copy_output"}
 
-def edid_command(token: str, source: int) -> str:
-    """``("EDIDU1", 3)`` -> ``"EDIDU1IN3"`` -- assign an EDID to an input."""
-    return f"{token}IN{source}"
+
+def _edid_option_key(token: str) -> str:
+    """``"EDIDD12"`` -> ``"preset_12"``.
+
+    Home Assistant requires translation keys to match ``[a-z0-9-_]+``, so the device's uppercase
+    tokens cannot be used as option values directly. Rather than lowercasing them into
+    ``edidd12`` -- which is unreadable and encodes nothing -- the family letter is expanded, so an
+    automation reads ``user_1`` and ``copy_output_3`` instead of vendor shorthand.
+    """
+    family, number = token[4], token[5:]
+    return f"{_EDID_FAMILIES[family]}_{number}"
+
+
+#: Wire token <-> Home Assistant option key. ``MatrixState`` stores the *option key*, so the
+#: pending overlay, the poll and the entity all speak one vocabulary and confirmation stays a
+#: plain equality check. Only :func:`edid_command` converts back to the wire.
+EDID_OPTION_BY_TOKEN: Final[dict[str, str]] = {
+    token: _edid_option_key(token) for token in EDID_LABEL_BY_TOKEN
+}
+EDID_TOKEN_BY_OPTION: Final[dict[str, str]] = {
+    option: token for token, option in EDID_OPTION_BY_TOKEN.items()
+}
+
+#: Option key -> the device's own label for it.
+EDID_OPTIONS: Final[dict[str, str]] = {
+    option: EDID_LABEL_BY_TOKEN[token] for token, option in EDID_OPTION_BY_TOKEN.items()
+}
+
+
+def decode_edid(token: str) -> str | None:
+    """A wire token as an option key, or ``None`` for one this firmware invented."""
+    return EDID_OPTION_BY_TOKEN.get(token.strip().upper())
+
+
+def edid_command(option: str, source: int) -> str:
+    """``("user_1", 3)`` -> ``"EDIDU1IN3"`` -- assign an EDID to an input."""
+    return f"{EDID_TOKEN_BY_OPTION[option]}IN{source}"
 
 
 # ---------------------------------------------------------------------------------------------

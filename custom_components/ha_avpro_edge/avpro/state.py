@@ -34,6 +34,7 @@ from .models import (
     BindMode,
     ImageEnhancement,
     ScalerMode,
+    decode_edid,
 )
 
 #: Ports on the model this was developed against. Only a fallback: the real count is derived
@@ -251,10 +252,12 @@ def fold_info(state: MatrixState, parsed: p.ParsedStatus, *, port_count: int) ->
 
 
 def fold_edid(state: MatrixState, parsed: p.ParsedStatus, *, port_count: int) -> MatrixState:
-    """Per-input EDID selection, stored as the device's own token.
+    """Per-input EDID selection, decoded from the wire token to an option key.
 
-    The token vocabulary is not fully mapped to the write-side preset indices yet, so the value
-    is carried through verbatim rather than being decoded into a possibly-wrong preset name.
+    Decoded here rather than at the entity so that the state, the pending overlay and the entity
+    all hold the same vocabulary -- which is what keeps confirming a write a plain equality
+    check. An unrecognised token yields ``None`` rather than being carried through raw, so a
+    firmware that invents one shows as unknown instead of as an option nothing can select.
     """
     if (early := _unchanged_unless_ok(state, parsed)) is not None:
         return early
@@ -263,7 +266,7 @@ def fold_edid(state: MatrixState, parsed: p.ParsedStatus, *, port_count: int) ->
     values += [None] * (port_count - len(values))
     return replace(
         state,
-        edid=tuple(v if v else None for v in values),
+        edid=tuple(decode_edid(v) if v else None for v in values),
         seen=state.seen | {p.StatusEndpoint.EDID},
     )
 

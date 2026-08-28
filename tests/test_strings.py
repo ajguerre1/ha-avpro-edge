@@ -106,6 +106,49 @@ def test_every_polling_profile_has_a_translated_label() -> None:
 
 
 # ---------------------------------------------------------------------------------------------
+# Home Assistant's own key rules
+# ---------------------------------------------------------------------------------------------
+
+#: hassfest enforces this on every translation key. Learned the hard way: the EDID options were
+#: first written using the device's own uppercase wire tokens as option keys, which looks like a
+#: perfectly reasonable thing to do and fails only in CI.
+_KEY_RULE = re.compile(r"^[a-z0-9]([a-z0-9\-_]*[a-z0-9])?$")
+
+
+def _entity_state_keys() -> list[tuple[str, str]]:
+    return [
+        (f"entity.{platform}.{entity}.state", key)
+        for platform, entities in STRINGS.get("entity", {}).items()
+        for entity, spec in entities.items()
+        for key in spec.get("state", {})
+    ]
+
+
+def test_every_entity_state_key_satisfies_the_translation_rule() -> None:
+    offenders = [
+        f"{where}: {key!r}" for where, key in _entity_state_keys() if not _KEY_RULE.match(key)
+    ]
+    assert not offenders, (
+        "hassfest requires translation keys to match [a-z0-9-_]+ and not start or end with a "
+        "hyphen or underscore:\n" + "\n".join(offenders)
+    )
+
+
+def test_the_key_rule_check_actually_looked_at_something() -> None:
+    assert len(_entity_state_keys()) > 30
+
+
+def test_edid_option_keys_match_the_client_exactly() -> None:
+    """Labels are generated from models.py; a hand-edit here would desynchronise the two."""
+    import sys
+
+    sys.path.insert(0, str(PACKAGE))
+    from avpro.models import EDID_OPTIONS
+
+    assert set(STRINGS["entity"]["select"]["edid"]["state"]) == set(EDID_OPTIONS)
+
+
+# ---------------------------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------------------------
 
