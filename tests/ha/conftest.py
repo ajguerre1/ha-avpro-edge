@@ -35,7 +35,9 @@ from fake_avpro import FakeMatrix
 
 from custom_components.ha_avpro_edge.const import DOMAIN
 
-pytest_plugins = ["pytest_homeassistant_custom_component"]
+# No `pytest_plugins` here. pytest refuses it outside the top-level conftest, and it is redundant
+# anyway: pytest-homeassistant-custom-component registers itself through a pytest11 entry point,
+# so installing it is enough.
 
 
 @pytest.fixture(autouse=True)
