@@ -37,3 +37,8 @@ htmlcov/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# AI DevKit built-in skills. Gitignored rather than vendored because this repo is public.
+# Restore in a fresh clone with:
+#   npx ai-devkit@latest init -a -e claude --built-in --yes
+.claude/skills/

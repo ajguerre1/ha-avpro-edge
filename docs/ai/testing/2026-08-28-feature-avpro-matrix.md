@@ -1,0 +1,139 @@
+---
+phase: testing
+title: Testing Strategy — AVPro Edge matrix integration
+description: Define how the integration is proven, offline and against hardware
+feature: avpro-matrix
+status: in-progress
+created: 2026-08-28
+---
+
+# Testing Strategy
+
+## Test Coverage Goals
+
+Three tiers, split by what they need rather than by what they cover.
+
+| Tier | Where | Needs | Runs |
+|---|---|---|---|
+| Offline | `tests/` | Nothing but Python | Everywhere, including Windows |
+| HA-layer | `tests/ha/` | `pytest-homeassistant-custom-component` | CI only — Home Assistant cannot be imported on Windows |
+| Live | `scripts/` + a human | The real matrix | On request, with the owner present |
+
+Target: every requirement `R1`–`R21` and every constraint `C1`–`C16` either has a test or a stated
+reason it cannot have one.
+
+## Unit Tests
+
+### T-R — `DeviceReport` (M-B)
+
+- [ ] T-R1 A partial report merges without clearing fields it does not mention
+- [ ] T-R2 A complete report is distinguishable from a partial one, and only a complete one may
+      clear a field
+- [ ] T-R3 Merging is associative — the order two pushes arrive in cannot change the result
+
+### T-S — `MatrixState.apply` (M-B)
+
+- [ ] T-S1 Applying the same report twice yields an equal state (the `always_update=False` premise)
+- [ ] T-S2 A changed value makes the state unequal
+- [ ] T-S3 An unknown state key is ignored rather than raising
+- [ ] T-S4 A value of `None` means "not reported", never "off" or "input 0"
+
+### T-N — Telnet grammar and client (M-C)
+
+- [ ] T-N1 Every line form in a real `GET STA` dump parses: `OUT1 VS IN1`, `OUT1 VIDEO 1`,
+      `OUT1 EXADL PH0`, `OUT1 EXA DIS`, `EXAMX MODE2`, `OUT1 AS IN2`, `OUT1 IMAGE ENH 0`,
+      `OUT1 STREAM ON`, `OUT1 SGM DIS`, `IN1 TMDS ON`, `IN1 EDID 30`, `KEY LOCK OFF`, `LCD ON T2`,
+      `ADDR 00`, `MAC ...`
+- [ ] T-N2 An unrecognised line is dropped, not guessed at
+- [ ] T-N3 EDID index `30` normalises to the same option key as HTTP's `EDIDU1` — the two
+      vocabularies must agree
+- [ ] T-N4 `EXA DIS`/`EXA EN` and `SGM DIS`/`SGM EN` map to the same booleans as HTTP's `ON`/`OFF`
+- [ ] T-N5 A partial dump produces a partial report, never a complete one
+- [ ] T-N6 A garbled or truncated line cannot corrupt neighbouring values
+- [ ] T-N7 The client sends a trailing return; the device requires it
+- [ ] T-N8 `GET STA` yields a complete report covering every state key the transport claims
+- [ ] T-N9 An unsolicited push updates only the keys it names (C3)
+- [ ] T-N10 A push arriving *during* a command response is not mistaken for the response (C6)
+- [ ] T-N11 Disconnect drops the pending overlay — a replayed optimistic value is a stale claim
+- [ ] T-N12 Reconnect backoff uses a per-client RNG, never `random.seed()`
+- [ ] T-N13 The fake telnet device reproduces push-on-change and the one-client limit
+
+### T-T — Transport interface (M-B)
+
+- [ ] T-T1 Both clients satisfy `Transport`; neither leaks a transport-specific type upward
+
+## Integration Tests
+
+### T-D — Selection and fallback (M-D)
+
+- [ ] T-D1 The transport option round-trips through the options flow
+- [ ] T-D2 Under `auto` with telnet reachable, telnet is selected and `pushes` is True
+- [ ] T-D3 Under `auto` with the telnet socket busy, HTTP is used and the fallback is logged **once**
+- [ ] T-D4 Under `telnet` with telnet unavailable, setup raises `ConfigEntryNotReady` rather than
+      silently degrading
+- [ ] T-D5 Under `http`, telnet-only entities are not created
+- [ ] T-D6 A pushing transport does not poll on the 5 s tick, but does run the 60 s safety net
+
+### T-X — The exclusivity guarantee (S8)
+
+- [ ] T-X1 Under the `http` setting, **nothing ever connects to port 23** — asserted by the fake
+      device's tripwire, which counts connections
+- [ ] T-X2 Static scan: no module opens an outbound socket outside the telnet client
+
+> T-X1 replaces the current blanket "never speak telnet" guard. The requirement was never that
+> telnet is forbidden; it is that the user's instruction is obeyed. The test has to say that.
+
+### T-E — Features telnet unlocks (M-E)
+
+- [ ] T-E1 `switch.output_N_stream` reads back after a restart — it is real state, not assumed
+- [ ] T-E2 `switch.input_N_power` reflects `IN1 TMDS ON`
+- [ ] T-E3 Key lock and LCD timeout read and write
+- [ ] T-E4 `media_player` advertises `TURN_ON`/`TURN_OFF` on telnet and **not** on HTTP
+- [ ] T-E5 `binary_sensor` prefers telnet's boolean over string-emptiness when both are available
+- [ ] T-E6 `manifest.json` declares `local_push`
+
+### T-W — Write semantics (already passing; must stay passing)
+
+- [ ] T-W1 One command produces exactly one state write
+- [ ] T-W2 The confirming poll or push produces none
+- [ ] T-W3 A stale reading inside the settle window does not revert the entity
+- [ ] T-W4 An ignored write expires to device truth and is **never** re-sent
+- [ ] T-W5 A quiet cycle writes no state at all (S4)
+
+## End-to-End Tests
+
+### T-L — Live, owner-gated
+
+- [ ] T-L1 Route a real output over telnet; observe the change and restore it
+- [ ] T-L2 Toggle `OUT1 STREAM` and confirm it reads back — the capability HTTP could not offer
+- [ ] T-L3 Change a route from the matrix's web page; confirm Home Assistant reflects it in < 2 s (S2)
+- [ ] T-L4 Pull power to the matrix; confirm entities go unavailable and recover with no restart
+- [ ] T-L5 Install from HACS as a custom repository, end to end (S3)
+
+## Test Data
+
+Fixtures are **invented**, never captured. A real `GET STA` dump contains the owner's port names
+and the unit's address and MAC; a real status body is site data. Fixtures use `OutA`/`SrcA`,
+`10.0.0.1`, `AA:BB:CC:DD:EE:FF`.
+
+The fake device serves both transports from one in-memory model, so a telnet write is visible to
+an HTTP read and vice versa — which is what makes the fallback path testable at all.
+
+## Manual Testing
+
+The live tier is the only place several constraints can be confirmed, because they are properties
+of the hardware rather than of the code: C1 (one client), C2 (socket free), C3 (push latency),
+C12 (apply latency). Each is re-checkable by the probes already used to establish it.
+
+## Bug Tracking
+
+Findings that change behaviour go in the planning doc's risk table and, if they outlive the
+feature, as an `AV-xx` row in the private Home Assistant repo's backlog.
+
+---
+
+# Execution Results
+
+Recorded per run once M-B begins. The offline and HA-layer suites currently stand at **298 tests
+passing in CI**, covering the HTTP transport delivered in M-A; the scenarios above are additions
+to that baseline, not a replacement for it.
