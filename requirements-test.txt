@@ -19,3 +19,7 @@ ruff>=0.7
 aiohttp>=3.9
 
 pytest-homeassistant-custom-component>=0.13
+
+# Used only by scripts/make_brand_icons.py to regenerate the brand assets. Never imported by the
+# integration, so manifest.json stays at requirements: [].
+Pillow>=10.0
