@@ -1,0 +1,131 @@
+# Integration quality scale.
+#
+# Deliberately NOT mirrored into manifest.json: the `quality_scale` manifest key is for core
+# integrations and hassfest objects to it on a custom one. This file is the declaration.
+#
+# Every rule that is not `done` carries a comment saying why, which tests/test_quality_scale.py
+# enforces -- an exemption without a reason is just an unfinished item wearing a different label.
+
+rules:
+  # ---- Bronze ------------------------------------------------------------------------------
+  action-setup: done
+    # Actions are registered in async_setup, not async_setup_entry, so they exist whether or not
+    # any entry has loaded; handlers resolve the entry at call time.
+  appropriate-polling: done
+    # 5 s tick, tiered so the steady state is 2.25 requests per tick (0.45 req/s). The device's
+    # own web UI polls one endpoint every 5 s while a browser is open, and the unit served 30
+    # requests at 10/s with zero failures. Arithmetic in avpro/schedule.py, asserted in
+    # tests/test_schedule.py.
+  brands: done
+    # custom_components/ha_avpro_edge/brand/icon.png and icon@2x.png, drawn rather than sourced:
+    # this repository is public and unaffiliated, so shipping the manufacturer's mark would be
+    # redistributing their trademark. Regenerate with scripts/make_brand_icons.py.
+  common-modules: done
+    # coordinator.py owns every command semantic; entity.py owns the device link, availability
+    # and change-gated state writes.
+  config-flow: done
+  config-flow-test-coverage: done
+    # tests/ha/test_config_flow.py covers every step and every error branch.
+  dependency-transparency: done
+    # requirements: []. The client is vendored under avpro/ rather than depended on. Never a
+    # git+https requirement: is_installed() returns False for URL requirements, so Home Assistant
+    # would refetch it on every restart.
+  docs-actions: done
+  docs-conditions:
+    status: exempt
+    comment: The integration provides no conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: The integration provides no triggers.
+  entity-event-setup: done
+    # Every entity derives from CoordinatorEntity, which subscribes in async_added_to_hass and
+    # unsubscribes via async_on_remove. Nothing registers a callback outside that.
+  entity-unique-id: done
+    # f"{entry.entry_id}_{state_key}". Entry-id based, never MAC-based: the entry's own unique id
+    # may migrate from host-derived to a MAC once the network body parses, and entity identities
+    # have to survive that.
+  has-entity-name: done
+  runtime-data: done
+    # AvProConfigEntry = ConfigEntry[AvProRuntime].
+  test-before-configure: done
+    # The config flow requires the identity body to parse, not merely to arrive. This firmware
+    # answers 200 for endpoints that do not exist, so a successful request proves only that
+    # something is listening on port 80.
+  test-before-setup: done
+    # async_config_entry_first_refresh raises ConfigEntryNotReady.
+  unique-config-entry: done
+    # MAC from the network status, falling back to a host-derived id with a warning. A working
+    # unit is never refused because its network body surprised the parser.
+
+  # ---- Silver ------------------------------------------------------------------------------
+  action-exceptions: done
+    # Commands raise HomeAssistantError with a translation key, never a bare string.
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable: done
+    # Entities follow coordinator.last_update_success.
+  integration-owner: done
+  log-when-unavailable: done
+    # Once per outage, not once per tick -- a matrix switched off overnight would otherwise write
+    # an identical line every five seconds until morning.
+  parallel-updates: done
+    # PARALLEL_UPDATES = 0 in every platform. Serialisation is already structural: the client
+    # holds one lock across every request, so a per-platform semaphore would only add latency.
+  reauthentication-flow:
+    status: exempt
+    comment: >-
+      The device has no authentication of any kind -- no username, password, token or TLS.
+      There is nothing to re-authenticate.
+  test-coverage: todo
+    # The offline suite is thorough; the HA-layer suite under tests/ha/ is newer and has not been
+    # measured against the 95% bar.
+
+  # ---- Gold --------------------------------------------------------------------------------
+  devices: done
+  diagnostics: done
+    # Built up from shapes and counts rather than dumped and redacted. A denylist protects the
+    # fields somebody remembered; on this device the port names are room names and source names,
+    # so the safe default is to disclose nothing and add back only what a bug report needs.
+  discovery:
+    status: todo
+    comment: >-
+      SDDP is not a Home Assistant discovery mechanism -- it is Control4-proprietary on UDP 1902,
+      while Home Assistant's ssdp component listens on 1900. The realistic path is a dhcp: block
+      keyed on the AVPro OUI, which needs the OUI confirmed across more than one unit.
+  discovery-update-info: todo
+  docs-data-update: done
+  docs-examples: todo
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: todo
+  docs-use-cases: todo
+  dynamic-devices:
+    status: exempt
+    comment: A fixed matrix. Ports are entities on one device, never devices that come and go.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default: done
+    # 8 of 45 entities are enabled. The rest are install-time settings on a device whose routing
+    # is the only thing that changes day to day, and this installation fans every state change
+    # out to around fifty wall panels.
+  entity-translations: done
+  exception-translations: done
+  icon-translations: done
+    # icons.json.
+  reconfiguration-flow: done
+  repair-issues: todo
+  stale-devices:
+    status: exempt
+    comment: Same as dynamic-devices -- one device, a fixed set of ports.
+
+  # ---- Platinum ----------------------------------------------------------------------------
+  async-dependency: done
+    # The vendored client is async throughout.
+  inject-websession: done
+    # AvProClient takes the session; __init__.py passes Home Assistant's shared one.
+  strict-typing: todo

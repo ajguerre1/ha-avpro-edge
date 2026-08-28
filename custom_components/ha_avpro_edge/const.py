@@ -39,16 +39,22 @@ DEFAULT_ALLOW_WRITES: Final = True
 
 #: How long a commanded value is shown before the device becomes authoritative again.
 #:
-#: PROVISIONAL. This should be the measured p99 of "command sent" to "change visible in
-#: VIDDivSta.CGI", sampled by polling every 100 ms over ~20 writes. Until that measurement is
-#: taken against real hardware this is an estimate, and it is the one number in the integration
-#: that is not yet evidence-backed.
+#: MEASURED on an AC-MX44-AUHD, firmware V1.41: 20 route changes across all four outputs, each
+#: timed from "command sent" to "change visible in VIDDivSta.CGI", polling every 100 ms.
 #:
-#: It is the only tuning knob for a problem that cannot be solved: from a value-only poll there
+#:     min 25 ms   p50 28 ms   19 of 20 within 25-46 ms   max 404 ms
+#:
+#: One sample in twenty took an order of magnitude longer than the rest, so the tail matters more
+#: than the median. 1.0 s is ~2.5x that worst observation. Twenty samples do not establish a true
+#: p99, so the margin is deliberate rather than tight; if a rarer outlier exceeds it the result is
+#: a brief flicker, not a wrong value.
+#:
+#: This is the only tuning knob for a problem that cannot be solved: from a value-only poll there
 #: is no way to distinguish "the matrix has not applied it yet" from "another controller
-#: overwrote it". Too short and a routing change visibly flickers; too long and a genuine
-#: override shows a stale value for that long.
-WRITE_SETTLE_WINDOW: Final = 1.5
+#: overwrote it". Too short and a routing change visibly flickers back and forward; too long and
+#: a genuine override shows a stale value for that long. Both failure modes are bounded by this
+#: one number.
+WRITE_SETTLE_WINDOW: Final = 1.0
 
 #: Added to the settle window before the expiry watchdog fires, so the confirming poll gets a
 #: chance to land first and resolve the entry cleanly.

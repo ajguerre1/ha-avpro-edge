@@ -42,8 +42,13 @@ _RFC1918 = re.compile(
 )
 _MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b")
 
-#: The fake device's invented MAC. Anything else that looks like one is suspect.
-ALLOWED_MACS = {"AA:BB:CC:DD:EE:FF"}
+#: Invented MACs used by the fake device and the tests. Anything else that looks like one is
+#: suspect, and must be justified by being added here deliberately rather than by loosening the
+#: pattern -- widening the check to make a failure go away is how a real one gets through.
+ALLOWED_MACS = {
+    "AA:BB:CC:DD:EE:FF",  # the fake matrix
+    "11:22:33:44:55:66",  # a deliberately *different* unit, for the reconfigure-mismatch test
+}
 
 TEXT_SUFFIXES = {".py", ".md", ".json", ".yaml", ".yml", ".toml", ".txt", ".cfg", ".ini", ""}
 
