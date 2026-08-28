@@ -1,0 +1,47 @@
+{
+  "entity": {
+    "media_player": {
+      "output": {
+        "default": "mdi:television"
+      }
+    },
+    "select": {
+      "audio_source": {
+        "default": "mdi:speaker-multiple"
+      },
+      "audio_delay": {
+        "default": "mdi:timer-sand"
+      },
+      "scaler": {
+        "default": "mdi:aspect-ratio"
+      },
+      "image_enhancement": {
+        "default": "mdi:image-auto-adjust"
+      },
+      "bind_mode": {
+        "default": "mdi:link-variant"
+      }
+    },
+    "switch": {
+      "extracted_audio": {
+        "default": "mdi:audio-input-stereo-minijack",
+        "state": {
+          "off": "mdi:volume-off"
+        }
+      },
+      "test_pattern": {
+        "default": "mdi:test-tube"
+      }
+    },
+    "sensor": {
+      "signal": {
+        "default": "mdi:video-input-hdmi"
+      }
+    },
+    "binary_sensor": {
+      "signal_present": {
+        "default": "mdi:video-input-hdmi"
+      }
+    }
+  }
+}

@@ -58,6 +58,86 @@
       }
     }
   },
+  "entity": {
+    "media_player": {
+      "output": {
+        "name": "Output {index}"
+      }
+    },
+    "select": {
+      "audio_source": {
+        "name": "Output {index} audio source",
+        "state": {
+          "1": "Input 1",
+          "2": "Input 2",
+          "3": "Input 3",
+          "4": "Input 4",
+          "5": "Input 5",
+          "6": "Input 6",
+          "7": "Input 7",
+          "8": "Input 8"
+        }
+      },
+      "audio_delay": {
+        "name": "Output {index} audio delay",
+        "state": {
+          "bypass": "Bypass",
+          "ms_90": "90 ms",
+          "ms_180": "180 ms",
+          "ms_270": "270 ms",
+          "ms_360": "360 ms",
+          "ms_450": "450 ms",
+          "ms_540": "540 ms",
+          "ms_630": "630 ms"
+        }
+      },
+      "scaler": {
+        "name": "Output {index} scaler",
+        "state": {
+          "auto": "Auto",
+          "bypass": "Bypass",
+          "downscale_4k_to_2k": "Downscale 4K to 1080p",
+          "upscale_2k_to_4k": "Upscale 1080p to 4K",
+          "hdbt_c_mode": "HDBaseT C mode"
+        }
+      },
+      "image_enhancement": {
+        "name": "Output {index} image enhancement",
+        "state": {
+          "off": "Off",
+          "weak": "Weak",
+          "medium": "Medium",
+          "strong": "Strong"
+        }
+      },
+      "bind_mode": {
+        "name": "Extracted audio mode",
+        "state": {
+          "bind_to_output": "Follow the video output",
+          "bind_to_input": "Follow the video input",
+          "matrix": "Route independently"
+        }
+      }
+    },
+    "switch": {
+      "extracted_audio": {
+        "name": "Output {index} extracted audio"
+      },
+      "test_pattern": {
+        "name": "Output {index} test pattern"
+      }
+    },
+    "sensor": {
+      "signal": {
+        "name": "Port {index} signal"
+      }
+    },
+    "binary_sensor": {
+      "signal_present": {
+        "name": "Port {index} signal present"
+      }
+    }
+  },
   "exceptions": {
     "writes_disabled": {
       "message": "Changes are disabled for this matrix. Turn on \"Allow changes to the matrix\" in the integration options."
