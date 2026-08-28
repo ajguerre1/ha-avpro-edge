@@ -23,6 +23,12 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 ROOT = Path(__file__).resolve().parents[2]
+
+# The repository root, so `custom_components.ha_avpro_edge` imports as a package. The offline
+# suite deliberately does the opposite -- it puts the *component* directory on the path and
+# imports `avpro` directly, which avoids executing the package __init__ and its Home Assistant
+# imports. Here Home Assistant is available and the real package is what is under test.
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from fake_avpro import FakeMatrix
