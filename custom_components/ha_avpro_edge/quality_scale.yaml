@@ -12,14 +12,24 @@ rules:
     # Actions are registered in async_setup, not async_setup_entry, so they exist whether or not
     # any entry has loaded; handlers resolve the entry at call time.
   appropriate-polling: done
-    # 5 s tick, tiered so the steady state is 2.25 requests per tick (0.45 req/s). The device's
-    # own web UI polls one endpoint every 5 s while a browser is open, and the unit served 30
-    # requests at 10/s with zero failures. Arithmetic in avpro/schedule.py, asserted in
-    # tests/test_schedule.py.
+    # Telnet is primary and pushes, so the coordinator does not poll it on the user's profile at
+    # all -- 60 s is a safety net against a missed push, not a refresh rate. Signal is the one
+    # value neither pushed nor readable over telnet, and it is polled over HTTP on the profile.
+    #
+    # The HTTP fallback still polls properly: 5 s tick, tiered so the steady state is 2.25
+    # requests per tick (0.45 req/s). The device's own web UI polls one endpoint every 5 s while a
+    # browser is open, and the unit served 30 requests at 10/s with zero failures. Arithmetic in
+    # avpro/schedule.py, asserted in tests/test_schedule.py.
   brands: done
-    # custom_components/ha_avpro_edge/brand/icon.png and icon@2x.png, drawn rather than sourced:
-    # this repository is public and unaffiliated, so shipping the manufacturer's mark would be
-    # redistributing their trademark. Regenerate with scripts/make_brand_icons.py.
+    # All eight filenames Home Assistant serves, in a light and a dark set, generated from AVPro's
+    # own two wordmarks by scripts/make_brand_icons.py. This comment previously said the icon was
+    # drawn rather than sourced, because shipping the manufacturer's mark would be redistributing
+    # their trademark -- over-cautious, and no longer true of what ships. The brands repository is
+    # built out of manufacturer logos precisely because an icon identifies which device an
+    # integration controls; attribution and non-affiliation are in the README.
+    #
+    # No submission anywhere is needed or possible: since 2026.3 a local brand/ directory takes
+    # priority over the CDN, and home-assistant/brands refuses custom-component pull requests.
   common-modules: done
     # coordinator.py owns every command semantic; entity.py owns the device link, availability
     # and change-gated state writes.
@@ -110,15 +120,21 @@ rules:
   entity-category: done
   entity-device-class: done
   entity-disabled-by-default: done
-    # 8 of 45 entities are enabled. The rest are install-time settings on a device whose routing
-    # is the only thing that changes day to day, and this installation fans every state change
-    # out to around fifty wall panels.
+    # 12 of 55 entities are enabled: four media players, four signal sensors and four output
+    # stream switches. The rest are install-time settings on a device whose routing is the only
+    # thing that changes day to day, and this installation fans every state change out to around
+    # fifty wall panels. Stream is the one control that earned its place on by default -- blanking
+    # a display is an everyday action, not commissioning.
   entity-translations: done
   exception-translations: done
   icon-translations: done
     # icons.json.
   reconfiguration-flow: done
-  repair-issues: todo
+  repair-issues: done
+    # One, raised when the entry wanted telnet and had to fall back to HTTP. Only then: someone who
+    # chose http is getting what they asked for, and a repair notice for a deliberate configuration
+    # is how the useful ones come to be ignored. It clears itself on any setup that lands on
+    # telnet, so it cannot outlive the fault it describes.
   stale-devices:
     status: exempt
     comment: Same as dynamic-devices -- one device, a fixed set of ports.

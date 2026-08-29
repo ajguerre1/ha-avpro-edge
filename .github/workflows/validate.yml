@@ -69,4 +69,7 @@ jobs:
       # tests/ha/ only run here. The vendored avpro client has no HA imports and runs
       # everywhere.
       - run: pip install -r requirements-test.txt
-      - run: pytest tests/ -v
+      # Coverage is reported, not enforced. A threshold that fails the build would turn every
+      # unrelated change into a coverage argument; the number is here so the quality-scale
+      # claim can be checked against something.
+      - run: pytest tests/ -v --cov=custom_components/ha_avpro_edge --cov-report=term-missing

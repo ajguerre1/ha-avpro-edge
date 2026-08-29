@@ -10,20 +10,27 @@ Installable and updatable through [HACS](https://hacs.xyz/).
 > **Status: early.** Developed against firmware **V1.41**. Other firmware revisions expose
 > different endpoints; the integration detects what is present rather than assuming.
 
-## Why HTTP and not telnet
+## Telnet first, HTTP as the fallback
 
-These matrices offer both a telnet command interface on port 23 and a CGI web interface on port
-80. This integration deliberately uses **HTTP only**.
+These matrices offer a telnet command interface on port 23 and a CGI web interface on port 80.
+This integration prefers **telnet**, and falls back to HTTP when it cannot have that socket.
 
-The telnet server on the tested unit accepts **exactly one client at a time** — four simultaneous
-connection attempts produced one success and three timeouts. In a typical installation that single
-slot is already held by a control system (Control4, Crestron, RTI), which holds it open
-persistently. An integration that took the telnet socket would take it *from* that controller.
+Telnet pushes changes within ~300–400 ms from any source — the front panel, the unit's own web
+page, anything else on the network — reads the whole device in one command, and is the only wire
+that can see output stream state, input power, key lock and the LCD backlight timeout. Under HTTP
+those controls are not created at all rather than shown reading unknown.
 
-The HTTP interface has no such limit, is stateless, and is what the unit's own web UI uses, so
-Home Assistant coexists with whatever else already controls the matrix. The cost is that Home
-Assistant polls rather than being pushed to, and that a handful of telnet-only commands are not
-reachable.
+The one thing telnet **cannot** do is report signal detection. That was established against a live
+unit rather than assumed: thirty-two command spellings across two probe rounds every one answered
+`CMD ERR`, and `GET STA` carries no signal line. Signal is therefore read over HTTP even while
+telnet is connected — the single documented exception, alongside reading the port names once at
+setup, since neither is something telnet supports.
+
+The telnet server accepts **exactly one client at a time**: four simultaneous connection attempts
+produced one success and three timeouts. If your installation has a control system that needs that
+socket, set the transport option to `http` and nothing will ever open port 23. Otherwise an
+unavailable control socket is treated as a fault — the integration still falls back so the matrix
+stays controllable, but it raises a repair issue and re-checks every minute.
 
 ## Installation
 
@@ -58,8 +65,45 @@ Reachable from the integration's **Configure** button. Changes apply immediately
 
 | Option | Default | Meaning |
 |---|---|---|
-| **Polling profile** | Balanced (5 s) | How often the matrix is polled. Responsive is 3 s, Gentle is 15 s. |
+| **Transport** | Auto | `auto` prefers telnet and falls back to HTTP. `telnet` refuses to start without it. `http` never opens port 23 — the escape hatch for an installation whose control system needs that socket. |
+| **Polling profile** | Balanced (5 s) | How often the matrix is polled. Responsive is 3 s, Gentle is 15 s. On telnet this sets only how often signal is re-read, because everything else is pushed. |
 | **Allow writes** | On | When off, the integration is read-only and cannot change routing. Useful while you observe it alongside an existing control system. |
+
+## Actions
+
+Two, for the things that do not fit an entity. Both take the matrix's config entry.
+
+### `ha_avpro_edge.route_all`
+
+Sends every output to one input in a single command rather than one per output — a real difference
+on a transport that serialises every request.
+
+```yaml
+action: ha_avpro_edge.route_all
+data:
+  config_entry_id: 01JABCDEF0123456789ABCDEF
+  source: 2
+```
+
+### `ha_avpro_edge.send_command`
+
+The escape hatch, for anything this integration has not modelled. It returns the device's own
+reply, which matters because unsupported commands are answered with `NO SUPPORT` and HTTP 200 —
+without the body you cannot tell "it worked" from "it was politely ignored".
+
+```yaml
+action: ha_avpro_edge.send_command
+data:
+  config_entry_id: 01JABCDEF0123456789ABCDEF
+  endpoint: video
+  command: O1I2
+response_variable: result
+```
+
+`endpoint` is one of `video`, `audio`, `system`, `edid`, `tmds`. The endpoints that reconfigure the
+matrix's network settings or factory-reset it are **absent from that list by construction**, not
+merely rejected — a wrong address on a matrix in a wiring closet is a site visit, and that is not
+something an automation should be able to cause. Commands are letters and digits only.
 
 ## Removal
 

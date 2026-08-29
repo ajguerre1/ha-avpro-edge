@@ -12,7 +12,7 @@ created: 2026-08-29
 Everything below has been proven against `tools/fake_avpro.py` and nothing below has ever run
 against the matrix. **495 tests are 495 statements about a model of the device, not about the
 device.** The fidelity pass showed the model matches the real protocol structurally — same line
-shapes, same field counts, same absent endpoints — but that says nothing about whether 49 entities
+shapes, same field counts, same absent endpoints — but that says nothing about whether 55 entities
 come up correctly, whether pushes reach the UI, or whether it loads at all.
 
 The plan is one pass rather than several, so this exists to make the pass count. Every item is
@@ -37,7 +37,7 @@ something a green CI run cannot tell us.
 
 | # | Check | Expected | Settles |
 |---|---|---|---|
-| R1 | Entity count | **49**: 4 media_player, 4 sensor, 4 binary_sensor, 17 switch, 22 select, 4 button | Whether capability gating behaves on real data |
+| R1 | Entity count | **55**: 4 media_player, 4 sensor, 4 binary_sensor, 17 switch, 22 select, 4 button | Whether capability gating behaves on real data |
 | R2 | Enabled by default | 12 — 4 media_player, 4 sensor, 4 stream switches | — |
 | R3 | Source picker on `media_player.*_output_1` | **Your real input names**, not `Input 1`–`Input 4` | The HTTP identity read at setup |
 | R4 | Routing matches the matrix's own web page | Same four routes | The whole point |
@@ -103,5 +103,7 @@ Listed plainly, because these are what a single pass is for:
 
 - Tick the `T-L` boxes in `docs/ai/testing/` with what was observed, and drop them from `DEFERRED`
   in `tests/test_traceability.py` — the build will complain until those two agree
-- Add the `AV-01` row to the private repo's `docs/ai/planning/backlog.md`
+- Update **AV-20** in the private repo's `docs/ai/planning/backlog.md` with what was observed
+  (filed 2026-08-29; `findings.yaml` is the id allocator, and `AV-01` is the inventory that
+  created that section — not this)
 - Anything that surprised us becomes a fake fault, so it can never surprise us twice
