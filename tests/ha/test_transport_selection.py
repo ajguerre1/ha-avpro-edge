@@ -87,6 +87,18 @@ async def test_the_telnet_only_entities_are_absent_under_http(hass: HomeAssistan
 # ---------------------------------------------------------------------------------------------
 
 
+#: The only HTTP endpoints that may be touched while telnet is connected, each because telnet
+#: genuinely cannot do it:
+#:
+#: * ``WEBDivSta`` / ``NETDivSta`` -- model, firmware and the port names, read once at setup;
+#: * ``INFDivSta`` -- signal detection, which 32 probed telnet command spellings could not read.
+#:
+#: Naming the set is stronger than the old ``== []``. That assertion only said "no HTTP"; this one
+#: says which HTTP, so a future routing or EDID read over the wrong wire fails loudly instead of
+#: being waved through by a relaxed guard.
+HTTP_ALLOWED_UNDER_TELNET = {"WEBDivSta.CGI", "NETDivSta.CGI", "INFDivSta.CGI"}
+
+
 async def test_no_http_request_is_issued_for_anything_telnet_supports(
     hass: HomeAssistant, fake
 ) -> None:
@@ -94,6 +106,12 @@ async def test_no_http_request_is_issued_for_anything_telnet_supports(
 
     Running HTTP alongside a healthy telnet session would be hedging: two transports doing one
     transport's job, double the device load, two sources of truth to reconcile.
+
+    "Unless you don't need to" is doing real work in that sentence. Signal is a thing telnet
+    cannot read at all -- established against the live matrix, not assumed -- so reading it over
+    HTTP is not hedging. Exactly one wire can produce that value, which is the same situation as
+    renaming a port. What must never appear here is routing, audio, scaler, EDID or stream: every
+    one of those telnet does support, and a request for one would mean two sources of truth.
     """
     entry = await _setup(hass, fake)
     coordinator = entry.runtime_data.coordinator
@@ -107,7 +125,28 @@ async def test_no_http_request_is_issued_for_anything_telnet_supports(
     await coordinator.async_set("stream_2", False)
     await hass.async_block_till_done()
 
-    assert fake.requests == [], f"HTTP was used while telnet was connected: {fake.requests}"
+    offenders = [r for r in fake.requests if r.split("?")[0] not in HTTP_ALLOWED_UNDER_TELNET]
+    assert not offenders, f"HTTP was used for something telnet supports: {offenders}"
+
+
+async def test_not_one_command_is_sent_over_http_while_telnet_is_connected(
+    hass: HomeAssistant, fake
+) -> None:
+    """The supplement reads. It must never write.
+
+    Signal is a measurement with no setter on either wire, so any command endpoint appearing here
+    means a write escaped onto the wrong transport.
+    """
+    entry = await _setup(hass, fake)
+    coordinator = entry.runtime_data.coordinator
+
+    fake.requests.clear()
+    await coordinator.async_set("video_route_1", 3)
+    await coordinator.async_set("key_lock", True)
+    await hass.async_block_till_done()
+
+    commands = [r for r in fake.requests if "SendCmd" in r or "sendCmd" in r]
+    assert not commands, f"a command went over HTTP while telnet was connected: {commands}"
 
 
 async def test_identity_is_the_only_http_read_and_it_happens_once(
@@ -119,12 +158,17 @@ async def test_identity_is_the_only_http_read_and_it_happens_once(
     and stops there. Reading them over HTTP is the same exception that covers renaming: an
     operation only HTTP has. It must happen at setup and never again, or it becomes the hedging
     the rule forbids.
+
+    Signal is the one other read on this list, and unlike identity it is genuinely periodic -- a
+    source waking up is a change, not a fact fixed at setup. It is bounded by cadence rather than
+    by count, which the interval test below covers.
     """
     await _setup(hass, fake)
 
-    identity_reads = [r.split("?")[0] for r in fake.requests]
-    assert set(identity_reads) <= {"WEBDivSta.CGI", "NETDivSta.CGI"}
-    assert identity_reads.count("WEBDivSta.CGI") == 1
+    reads = [r.split("?")[0] for r in fake.requests]
+    assert set(reads) <= HTTP_ALLOWED_UNDER_TELNET
+    assert reads.count("WEBDivSta.CGI") == 1, "identity was read more than once"
+    assert reads.count("NETDivSta.CGI") == 1
 
 
 async def test_the_port_names_survive_on_telnet(hass: HomeAssistant, fake) -> None:
@@ -143,7 +187,11 @@ async def test_the_safety_net_read_is_telnet_not_an_http_poll(hass: HomeAssistan
     await coordinator.async_refresh()
     await hass.async_block_till_done()
 
-    assert fake.requests == []
+    # Filtered rather than compared to empty: the signal supplement runs on its own timer, and a
+    # test that happened to straddle one of its ticks would fail for a reason that has nothing to
+    # do with what it is asserting.
+    offenders = [r for r in fake.requests if r.split("?")[0] not in HTTP_ALLOWED_UNDER_TELNET]
+    assert not offenders
     assert any(c.upper() == "GET STA" for c in fake.telnet_commands)
 
 

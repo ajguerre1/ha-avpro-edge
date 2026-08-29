@@ -66,7 +66,8 @@ reason it cannot have one.
 
 ### T-T — Transport interface (M-B)
 
-- [x] T-T1 Both clients satisfy `Transport`; neither leaks a transport-specific type upward
+- [x] T-T1 **Every** transport satisfies `Transport`, discovered rather than listed; none leaks a
+      transport-specific type upward
 
 ## Integration Tests
 
@@ -88,7 +89,8 @@ reason it cannot have one.
       device's connection counter. The escape hatch (S8) still holds absolutely
 - [x] T-X2 While telnet is connected, **no HTTP request is issued for anything telnet supports**.
       Routing, audio, scaler, EDID, stream, key lock and the periodic safety-net read all go over
-      telnet. Asserted by counting HTTP requests on the fake, which must stay at zero
+      telnet. Asserted against a named allowlist on the fake — `WEBDivSta`, `NETDivSta` (identity,
+      once) and `INFDivSta` (signal) — so anything else appearing is a failure
 - [x] T-X3 A port rename — the one thing telnet cannot do — *does* reach HTTP, even while telnet
       is connected, and is the only thing that does
 - [x] T-X4 Static scan: no module opens an outbound socket outside the telnet client
@@ -104,7 +106,7 @@ reason it cannot have one.
 - [ ] T-E2 `switch.input_N_power` reflects `IN1 TMDS ON`
 - [ ] T-E3 Key lock and LCD timeout read and write
 - [ ] T-E4 `media_player` advertises `TURN_ON`/`TURN_OFF` on telnet and **not** on HTTP
-- [ ] T-E5 `binary_sensor` prefers telnet's boolean over string-emptiness when both are available
+- [x] T-E5 Signal is supplemented over HTTP when telnet is active — telnet cannot read it at all
 - [ ] T-E6 `manifest.json` declares `local_push`
 
 ### T-W — Write semantics (already passing; must stay passing)

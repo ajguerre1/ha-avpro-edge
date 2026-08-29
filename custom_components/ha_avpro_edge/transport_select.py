@@ -28,15 +28,19 @@ from homeassistant.exceptions import ConfigEntryNotReady
 
 from .avpro.client import AvProClient
 from .avpro.http_transport import HttpTransport
+from .avpro.supplement import SupplementedTransport
 from .avpro.telnet_client import TelnetBusy, TelnetError, TelnetTransport
 from .avpro.transport import Transport
 from .const import (
     CONF_ALLOW_WRITES,
+    CONF_POLLING_PROFILE,
     CONF_TELNET_PORT,
     CONF_TRANSPORT,
     DEFAULT_ALLOW_WRITES,
+    DEFAULT_POLLING_PROFILE,
     DEFAULT_TELNET_PORT,
     DEFAULT_TRANSPORT,
+    POLLING_PROFILES,
     TRANSPORT_HTTP,
     TRANSPORT_TELNET,
 )
@@ -46,6 +50,17 @@ _LOGGER = logging.getLogger(__name__)
 
 def transport_setting(entry: ConfigEntry) -> str:
     return entry.options.get(CONF_TRANSPORT, DEFAULT_TRANSPORT)
+
+
+def signal_interval(entry: ConfigEntry) -> float:
+    """How often to read the signal endpoint when telnet is carrying everything else.
+
+    The user's polling profile, deliberately -- not the 60 s safety-net interval the coordinator
+    uses for a pushing transport. That interval is justified by pushes carrying normal operation,
+    and signal does not push: a source waking up would take up to a minute to appear.
+    """
+    profile = entry.options.get(CONF_POLLING_PROFILE, DEFAULT_POLLING_PROFILE)
+    return float(POLLING_PROFILES.get(profile, POLLING_PROFILES[DEFAULT_POLLING_PROFILE]))
 
 
 def wants_telnet(entry: ConfigEntry) -> bool:
@@ -83,8 +98,15 @@ async def async_select_transport(
         seed=entry.entry_id,
     )
 
+    # Telnet cannot read signal detection -- established against the live matrix, not assumed:
+    # 32 command spellings across two probe rounds all answered CMD ERR, and GET STA carries no
+    # signal line. Since media_player.state and eight entities are built on it, the telnet
+    # transport is supplemented with the one HTTP endpoint that has it. See avpro/supplement.py
+    # for why this is the documented exception rather than a breach of the transport rule.
+    supplemented = SupplementedTransport(telnet, client, interval=signal_interval(entry))
+
     try:
-        await telnet.async_connect()
+        await supplemented.async_connect()
     except TelnetBusy as err:
         if setting == TRANSPORT_TELNET:
             raise ConfigEntryNotReady(str(err)) from err
@@ -102,5 +124,5 @@ async def async_select_transport(
         _LOGGER.warning("%s: telnet unavailable (%s); falling back to HTTP", entry.title, err)
         return HttpTransport(client)
 
-    _LOGGER.debug("%s: using the telnet transport", entry.title)
-    return telnet
+    _LOGGER.debug("%s: using the telnet transport, with signal supplemented over HTTP", entry.title)
+    return supplemented

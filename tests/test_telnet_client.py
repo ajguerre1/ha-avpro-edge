@@ -296,6 +296,55 @@ def test_it_declares_that_it_pushes() -> None:
 
 
 # ---------------------------------------------------------------------------------------------
+# T-N7 -- the terminator the device requires
+# ---------------------------------------------------------------------------------------------
+
+
+class _Recorder:
+    """A writer that keeps the exact bytes, so the terminator can be asserted on."""
+
+    def __init__(self) -> None:
+        self.written = b""
+
+    def write(self, data: bytes) -> None:
+        self.written += data
+
+    async def drain(self) -> None:
+        pass
+
+    def is_closing(self) -> bool:
+        return False
+
+
+async def test_commands_are_terminated_with_a_carriage_return_and_newline() -> None:
+    """T-N7. Without the return the device does nothing and reports nothing.
+
+    That is a confusing way to fail -- the socket is open, the write succeeds, and the matrix is
+    simply silent -- so it is worth pinning at the byte level rather than inferring it from the
+    fake, which strips whitespace before matching and would accept a bare newline.
+    """
+    transport = TelnetTransport("127.0.0.1:1")
+    recorder = _Recorder()
+    transport._writer = recorder  # type: ignore[assignment]
+
+    await transport._send("GET STA")
+
+    assert recorder.written == b"GET STA\r\n"
+
+
+async def test_every_command_carries_the_terminator_not_just_the_first() -> None:
+    """T-N7. Two commands must be two lines, not one run-on."""
+    transport = TelnetTransport("127.0.0.1:1")
+    recorder = _Recorder()
+    transport._writer = recorder  # type: ignore[assignment]
+
+    await transport._send("SET OUT1 VS IN2")
+    await transport._send("GET STA")
+
+    assert recorder.written == b"SET OUT1 VS IN2\r\nGET STA\r\n"
+
+
+# ---------------------------------------------------------------------------------------------
 # T-N10 -- a push is never mistaken for a command response (C6)
 # ---------------------------------------------------------------------------------------------
 #

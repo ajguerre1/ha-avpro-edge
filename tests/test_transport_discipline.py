@@ -159,21 +159,57 @@ def test_the_behavioural_assertions_exist_somewhere() -> None:
 # fallback it would have raised AttributeError at runtime.
 
 
-def test_both_transports_satisfy_the_contract() -> None:
-    """A method missing from one wire is a crash the moment fallback happens."""
-    import sys
+def _transport_implementations() -> dict[str, type]:
+    """Every class in the vendored client that presents itself as a transport.
 
-    sys.path.insert(0, str(COMPONENT / "ha_avpro_edge"))
-    from avpro.http_transport import HttpTransport
-    from avpro.telnet_client import TelnetTransport
+    **Discovered, not listed.** The first version of this test named ``HttpTransport`` and
+    ``TelnetTransport`` explicitly, which reproduces in miniature the bug it exists to prevent: a
+    third implementation lands, nobody remembers to add it, and the contract goes unchecked for
+    precisely the class that has had least exercise. ``SupplementedTransport`` was that third one,
+    and it arrived four days after this test was written.
+
+    A class qualifies if it defines ``async_read_all`` -- the method no non-transport has and no
+    transport can do without.
+
+    The ``Transport`` protocol itself is excluded. It satisfies its own contract tautologically,
+    so counting it would let the "at least three" check pass with only two real implementations --
+    a guard that looks stronger than it is.
+    """
+    import importlib
+    import inspect
+    from typing import Protocol
+
+    found: dict[str, type] = {}
+    for path in sorted((COMPONENT / "ha_avpro_edge" / "avpro").glob("*.py")):
+        if path.stem.startswith("_"):
+            continue
+        module = importlib.import_module(f"avpro.{path.stem}")
+        for name, obj in vars(module).items():
+            if (
+                inspect.isclass(obj)
+                and obj.__module__ == module.__name__
+                and hasattr(obj, "async_read_all")
+                and Protocol not in obj.__bases__
+            ):
+                found[name] = obj
+    return found
+
+
+def test_every_transport_satisfies_the_contract() -> None:
+    """T-T1. A method missing from one wire is a crash the moment fallback happens."""
     from avpro.transport import Transport
 
     required = [name for name in dir(Transport) if not name.startswith("_")]
     assert required, "the protocol declares nothing; this check would be vacuous"
 
-    for cls in (HttpTransport, TelnetTransport):
-        missing = [name for name in required if not hasattr(cls, name)]
-        assert not missing, f"{cls.__name__} is missing {missing}"
+    implementations = _transport_implementations()
+    assert len(implementations) >= 3, (
+        f"expected at least the HTTP, telnet and supplemented transports; found {implementations}"
+    )
+
+    for name, cls in implementations.items():
+        missing = [attribute for attribute in required if not hasattr(cls, attribute)]
+        assert not missing, f"{name} is missing {missing}"
 
 
 def test_the_contract_covers_what_callers_actually_use() -> None:

@@ -249,6 +249,7 @@ def test_a_block_of_nothing_is_not_a_census_even_if_asked_for() -> None:
 
 
 def test_a_partial_report_merges_without_clearing_what_it_omits() -> None:
+    """T-R1. A push naming one output must not blank the rest of the device."""
     census = tp.parse_lines(CENSUS, complete=True)
     push = tp.parse_lines("OUT1 VS IN4")
     merged = census.merge(push)
@@ -266,6 +267,44 @@ def test_merging_two_partials_does_not_add_up_to_a_census() -> None:
 def test_merge_lets_the_later_report_win() -> None:
     a = tp.parse_lines("OUT1 VS IN1")
     b = tp.parse_lines("OUT1 VS IN3")
+    assert a.merge(b).get("video_route_1") == 3
+
+
+def test_merging_is_associative() -> None:
+    """T-R3. How reports are grouped while folding cannot change the result.
+
+    The transports assemble a report in whatever grouping is convenient -- HTTP merges one
+    endpoint at a time, telnet folds a whole block of lines at once -- so if grouping mattered,
+    the same three facts would land differently depending on which wire delivered them.
+    """
+    a = tp.parse_lines("OUT1 VS IN1")
+    b = tp.parse_lines("OUT2 VS IN2")
+    c = tp.parse_lines("OUT3 VS IN3")
+    assert a.merge(b).merge(c).values == a.merge(b.merge(c)).values
+
+
+def test_the_arrival_order_of_two_independent_pushes_does_not_matter() -> None:
+    """T-R3. Two pushes about different outputs commute.
+
+    This is the property the testing doc was reaching for with "the order two pushes arrive in
+    cannot change the result". It holds for disjoint keys, which is the case that actually
+    happens: the device announces one output at a time.
+    """
+    a = tp.parse_lines("OUT1 VS IN1")
+    b = tp.parse_lines("OUT2 VS IN4")
+    assert a.merge(b).values == b.merge(a).values
+
+
+def test_two_reports_about_the_same_output_are_deliberately_order_dependent() -> None:
+    """T-R3, the boundary. Overlapping keys do **not** commute, and must not.
+
+    "Later wins" is what lets a fresh reading supersede a stale one. A merge that tried to be
+    commutative here would have to choose a winner by something other than recency, and there is
+    nothing else to choose by.
+    """
+    a = tp.parse_lines("OUT1 VS IN1")
+    b = tp.parse_lines("OUT1 VS IN3")
+    assert a.merge(b).values != b.merge(a).values
     assert a.merge(b).get("video_route_1") == 3
 
 

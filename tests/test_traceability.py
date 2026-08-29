@@ -36,6 +36,14 @@ TESTS = ROOT / "tests"
 #: ``T-`` followed by a category and a number: ``T-R1``, ``T-X4``, ``T-N12``.
 ID = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\b")
 
+#: A range, as module docstrings like to write them: ``T-N1..T-N6``, ``T-X1 .. T-X4``.
+#:
+#: Stripped before counting what a test file covers. A range is a summary of a file's subject, not
+#: a claim that each endpoint has an assertion -- and taking it as one is a real hole, because the
+#: cheapest way to satisfy this check would then be to widen a docstring. Five IDs were passing on
+#: exactly that basis when this was added.
+RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
+
 #: Scenarios that are declared but not yet implemented, each with the reason it is not.
 #:
 #: Every entry here is a promise, not an excuse -- and it is a promise the suite can see. Two
@@ -50,7 +58,6 @@ DEFERRED: dict[str, str] = {
     "T-E2": "M-E: switch.input_N_power is not built yet",
     "T-E3": "M-E: the key-lock and LCD-timeout entities are not built yet",
     "T-E4": "M-E: media_player does not advertise TURN_ON/TURN_OFF from capabilities yet",
-    "T-E5": "M-E: binary_sensor does not yet prefer telnet's boolean",
     "T-E6": "M-E: iot_class is still local_polling in the manifest",
     "T-L1": "live tier: needs the real matrix, and routing an output is visible on a wall panel",
     "T-L2": "live tier: toggling OUT1 STREAM blanks a display -- owner must be present",
@@ -91,7 +98,8 @@ def _referenced() -> set[str]:
     for path in TESTS.rglob("*.py"):
         if "__pycache__" in path.parts or path.resolve() == Path(__file__).resolve():
             continue
-        found |= set(ID.findall(path.read_text(encoding="utf-8")))
+        text = RANGE.sub(" ", path.read_text(encoding="utf-8"))
+        found |= set(ID.findall(text))
     return found
 
 
