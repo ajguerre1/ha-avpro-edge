@@ -10,6 +10,8 @@ and leave two sources of truth.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -221,12 +223,24 @@ async def test_a_polling_transport_uses_the_chosen_profile(hass: HomeAssistant, 
 async def test_an_out_of_band_change_arrives_by_push(hass: HomeAssistant, fake) -> None:
     """No poll involved: the device volunteers it, and the entity follows."""
     entry = await _setup(hass, fake)
+    coordinator = entry.runtime_data.coordinator
     entity = "media_player.ac_mx44_auhd_output_1"
     assert hass.states.get(entity).attributes["source"] == "SrcA"
 
     await fake.push_telnet("OUT1 VS IN4\r\n")
-    await hass.async_block_till_done()
 
+    # The push crosses a real socket and the client batches inbound lines for 250 ms before
+    # parsing, so async_block_till_done alone never sees it. Poll rather than sleep a fixed
+    # amount: a sleep tuned on the development box is a flake on a slower CI runner.
+    for _ in range(40):
+        await asyncio.sleep(0.1)
+        await hass.async_block_till_done()
+        if coordinator.matrix.get("video_route_1") == 4:
+            break
+
+    # Asserted separately so a failure says whether the push arrived at all, or arrived and then
+    # failed to reach the entity.
+    assert coordinator.matrix.get("video_route_1") == 4, "the push never reached the coordinator"
     assert hass.states.get(entity).attributes["source"] == "SrcD"
 
 
