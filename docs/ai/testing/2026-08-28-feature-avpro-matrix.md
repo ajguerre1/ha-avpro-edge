@@ -135,11 +135,20 @@ dependency when nothing is left that only the driver can do.
 
 ### T-L — Live, needs the hardware
 
-- [ ] T-L1 Route a real output over telnet; observe the change and restore it
+- [x] T-L1 Route a real output over telnet; observe the change and restore it
+      *2026-08-29: output 1 to input 3 and back from Home Assistant. The matrix agreed both
+      times, exactly one state change per write, routing restored bit for bit.*
 - [ ] T-L2 Toggle `OUT1 STREAM` and confirm it reads back — the capability HTTP could not offer
-- [ ] T-L3 Change a route from the matrix's web page; confirm Home Assistant reflects it in < 2 s (S2)
+- [x] T-L3 Change a route from the matrix's web page; confirm Home Assistant reflects it in < 2 s (S2)
+      *2026-08-29: driven over the CGI interface so Home Assistant learned of it only by push.
+      **0.538 s**, and 0.549 s on the restore. The two agreeing to 11 ms says the path is
+      consistent rather than lucky, and the figure decomposes as the mechanism predicts:
+      ~300-400 ms for the device to announce, plus the client's 250 ms quiet-gather window.*
 - [ ] T-L4 Pull power to the matrix; confirm entities go unavailable and recover with no restart
-- [ ] T-L5 Install from HACS as a custom repository, end to end (S3)
+- [x] T-L5 Install from HACS as a custom repository, end to end (S3)
+      *2026-08-29: config entry loaded, 55 entities registered (4 media_player, 4 sensor,
+      4 binary_sensor, 17 switch, 22 select, 4 button), 12 enabled, device identified as
+      AC-MX44-AUHD V1.41. No repair issue raised, so the fallback path did not trigger.*
 - [ ] T-L7 Press a hot plug reset against a source that has settled wrongly, and confirm it
       renegotiates — `HOT_PLUG_RESET_HOLD` is the one timing constant here that is not measured,
       because how long a hot-plug line must drop is a property of the *source*, and nothing on

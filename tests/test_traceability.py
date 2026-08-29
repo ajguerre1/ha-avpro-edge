@@ -54,13 +54,34 @@ RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
 #:   and several of them are disruptive enough to need someone present (T-L2 blanks a display;
 #:   T-L4 pulls power). They are checked off by hand in the doc, with evidence.
 DEFERRED: dict[str, str] = {
-    "T-L1": "live tier: needs the real matrix, and routing an output is visible on a display",
     "T-L2": "live tier: toggling OUT1 STREAM blanks a display -- someone must be watching it",
-    "T-L3": "live tier: needs a human at the matrix's web page",
     "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
-    "T-L5": "live tier: installing from HACS happens on the live Home Assistant",
     "T-L6": "live tier: the LCD backlight timeout is only observable by a person at the matrix",
     "T-L7": "live tier: only a real source can show whether it noticed the hot-plug drop",
+}
+
+#: Live scenarios that have been run against real hardware, and what was observed.
+#:
+#: The live tier used to sit outside this mechanism entirely. A scenario could be *implemented* or
+#: *deferred* and nothing else, so running one by hand left it looking undone for ever -- and
+#: ticking it by hand would have made the box a claim nothing checked, which is the failure this
+#: module exists to prevent.
+#:
+#: Dates and figures are the point. "Verified" with no number is exactly the sort of assurance the
+#: testing doc carried about T-T1 through the whole life of a feature in which it did not exist.
+VERIFIED_LIVE: dict[str, str] = {
+    "T-L1": (
+        "2026-08-29: routed output 1 to input 3 from Home Assistant and back. The matrix agreed "
+        "both times, exactly one state change per write, routing restored bit for bit."
+    ),
+    "T-L3": (
+        "2026-08-29: routed an output over the CGI interface so Home Assistant learned of it only "
+        "by push. Reflected in 0.538 s, and 0.549 s on the restore, against a 2 s budget (S2)."
+    ),
+    "T-L5": (
+        "2026-08-29: installed from HACS as a custom repository on the live instance. Entry "
+        "loaded, 55 entities registered, 12 enabled, identified as AC-MX44-AUHD V1.41 (S3)."
+    ),
 }
 
 
@@ -100,17 +121,21 @@ def _referenced() -> set[str]:
     return found
 
 
-def test_every_declared_scenario_is_implemented_or_deferred() -> None:
+def test_every_declared_scenario_is_accounted_for() -> None:
     """The check that would have caught T-T1.
 
     A scenario that is declared, not implemented, and not deferred is invisible without this --
     which is exactly how a specified test came to not exist for the entire life of a feature.
+
+    Three ways to be accounted for, and no fourth: a test names it, :data:`DEFERRED` explains why
+    not yet, or :data:`VERIFIED_LIVE` records what was seen on the hardware.
     """
-    missing = _declared() - _referenced() - set(DEFERRED)
+    missing = _declared() - _referenced() - set(DEFERRED) - set(VERIFIED_LIVE)
     assert not missing, (
-        "declared in the testing doc, implemented nowhere, and not listed in DEFERRED:\n  "
+        "declared in the testing doc and accounted for nowhere:\n  "
         + "\n  ".join(sorted(missing))
-        + "\n\nEither write the test and name the ID in it, or add it to DEFERRED with a reason."
+        + "\n\nWrite the test and name the ID in it, add it to DEFERRED with a reason, or record"
+        " the live observation in VERIFIED_LIVE."
     )
 
 
@@ -185,11 +210,38 @@ def test_a_ticked_box_means_a_test_exists() -> None:
 
     A ticked box that nothing implements is worse than an unticked one: it is the doc actively
     asserting coverage that is not there, which is what makes a reader stop looking.
+
+    Backed by a test, or by a recorded live observation. Nothing else counts.
     """
-    lying = _ticked() - _referenced()
-    assert not lying, "ticked in the testing doc but implemented nowhere:\n  " + "\n  ".join(
-        sorted(lying)
+    lying = _ticked() - _referenced() - set(VERIFIED_LIVE)
+    assert not lying, (
+        "ticked, but backed by neither a test nor a live observation:\n  "
+        + "\n  ".join(sorted(lying))
     )
+
+
+def test_a_live_observation_is_recorded_as_ticked() -> None:
+    """The other direction: having run a scenario and not ticked it is the same silence."""
+    unticked = set(VERIFIED_LIVE) - _ticked()
+    assert not unticked, "verified live but still unticked in the testing doc:\n  " + "\n  ".join(
+        sorted(unticked)
+    )
+
+
+def test_nothing_is_both_deferred_and_verified() -> None:
+    """The two records of live status cannot disagree."""
+    both = set(DEFERRED) & set(VERIFIED_LIVE)
+    assert not both, "both deferred and verified live:\n  " + "\n  ".join(sorted(both))
+
+
+def test_every_live_observation_cites_something_checkable() -> None:
+    """A date and a detail, not the word "verified".
+
+    An observation with no number is the same kind of assurance the testing doc gave about T-T1
+    while that test did not exist.
+    """
+    vague = [key for key, note in VERIFIED_LIVE.items() if "2026-" not in note or len(note) < 60]
+    assert not vague, f"live observations with no date or no detail: {sorted(vague)}"
 
 
 def test_a_deferred_scenario_is_not_ticked() -> None:

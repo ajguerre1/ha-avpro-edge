@@ -1,22 +1,34 @@
 ---
 phase: deployment
-title: Live verification checklist — 0.2.0
+title: Live verification checklist — 0.2.1
 description: Every assumption a single pass against the real matrix has to settle
 feature: avpro-matrix
-status: ready
+status: partly-verified
 created: 2026-08-29
 ---
 
-# Live verification — 0.2.0
+# Live verification — 0.2.1
 
-Everything below has been proven against `tools/fake_avpro.py` and nothing below has ever run
-against the matrix. **495 tests are 495 statements about a model of the device, not about the
-device.** The fidelity pass showed the model matches the real protocol structurally — same line
-shapes, same field counts, same absent endpoints — but that says nothing about whether 55 entities
-come up correctly, whether pushes reach the UI, or whether it loads at all.
+**Run 2026-08-29. Everything that can be driven from software passes; what remains needs hands or
+eyes on the hardware.**
 
-The plan is one pass rather than several, so this exists to make the pass count. Every item is
-something a green CI run cannot tell us.
+This was written while nothing had ever run against the matrix, on the principle that a passing
+test suite is a statement about a *model* of the device rather than about the device. That gap is
+now largely closed, and the model held up: the entity count, the transport choice and the signal
+supplement were all right on first contact.
+
+Two figures are worth carrying forward, because they are the ones no test could have produced:
+
+| Measurement | Result | Budget |
+|---|---|---|
+| Out-of-band route change → visible in Home Assistant | **0.538 s** (0.549 s on the restore) | 2 s (S2) |
+| State writes per commanded change | **exactly 1** — no flicker | 1 (S4) |
+
+The latency decomposes the way the mechanism predicts — roughly 300–400 ms for the device to
+announce a change, plus the client's 250 ms quiet-gather window before it parses a block — so it
+agrees with the design rather than merely being fast. Polling could not have produced it: on the
+5 s profile the same change surfaces somewhere between 0 and 5 seconds later, if the routing
+endpoint happens to be due.
 
 ## Install
 
@@ -33,7 +45,7 @@ something a green CI run cannot tell us.
 | I4 | Device page shows model and firmware | `AC-MX44-AUHD`, `V1.41` | — |
 | I5 | The AVPro Edge icon appears in HACS and on the integration card | The AV mark, not a placeholder | Served from `brand/` via the local proxy; the CDN has no entry for this domain and does not need one |
 
-## Reads — do these before writing anything
+## Reads — **all passed 2026-08-29**
 
 | # | Check | Expected | Settles |
 |---|---|---|---|
@@ -46,7 +58,7 @@ something a green CI run cannot tell us.
 | R7 | Signal sensors | Populated, not `unknown` and not all `off` | **The HTTP signal supplement working alongside telnet** — the newest and least-exercised code |
 | R8 | `switch.*_output_N_stream` | `on` for live outputs, no "assumed" marker | T-E1: real state rather than a memory |
 
-## Out-of-band change (T-L3)
+## Out-of-band change (T-L3) — **passed, 0.538 s**
 
 | # | Check | Expected |
 |---|---|---|
@@ -57,7 +69,7 @@ something a green CI run cannot tell us.
 O1 is the strongest single test in this list: it exercises telnet push, the parser, the report
 seam, the coordinator and the entity in one motion, and it is the thing HTTP polling could never do.
 
-## Writes (T-L1)
+## Writes (T-L1) — **all passed, matrix restored bit for bit**
 
 | # | Check | Expected |
 |---|---|---|
@@ -69,7 +81,7 @@ seam, the coordinator and the entity in one motion, and it is the thing HTTP pol
 
 W5 is the settle-window measurement (25–404 ms, window 1.0 s) meeting reality.
 
-## Recovery (T-L4)
+## Recovery (T-L4) — **not run**
 
 | # | Check | Expected |
 |---|---|---|
@@ -77,7 +89,7 @@ W5 is the settle-window measurement (25–404 ms, window 1.0 s) meeting reality.
 | P2 | Power it back on | Recovers with **no Home Assistant restart** |
 | P3 | Check Repairs during the outage | A telnet repair issue may appear; it must clear itself on recovery |
 
-## Owner present — these are visible or need eyes
+## Still outstanding — these need hands or eyes on the hardware
 
 | # | Check | Why it needs you |
 |---|---|---|
@@ -99,9 +111,18 @@ Listed plainly, because these are what a single pass is for:
 5. **Port renaming.** Not implemented; still gated on probe P11 (percent-encoding is the riskiest
    write class, and the endpoint writes all eight names at once).
 
-## After the pass
+## What the run changed
 
-- Tick the `T-L` boxes in `docs/ai/testing/` with what was observed, and drop them from `DEFERRED`
-  in `tests/test_traceability.py` — the build will complain until those two agree
-- Record what was observed alongside this checklist
-- Anything that surprised us becomes a fake fault, so it can never surprise us twice
+- **T-L1, T-L3 and T-L5 are ticked**, each with its observation recorded in `VERIFIED_LIVE` in
+  `tests/test_traceability.py`. The live tier used to sit outside that mechanism, so running a
+  scenario by hand left it looking undone for ever; a ticked box must now be backed by a test *or*
+  by a dated observation, and the build fails on a claim with neither.
+- **O2, P1–P3, T-L2, T-L6 and T-L7 remain.** Each needs someone at the matrix: pressing a front
+  panel button, cutting power, watching a screen go dark, or seeing a backlight time out.
+- **Nothing surprised us**, so no new fake fault was needed — the first run of this checklist that
+  could have said otherwise.
+
+## Still to do after those
+
+- Update the deployment tracking with the remaining observations
+- Anything that surprises us becomes a fake fault, so it cannot surprise us twice
