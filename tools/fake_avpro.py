@@ -37,9 +37,10 @@ _LOGGER = logging.getLogger(__name__)
 #: What each fault is for. Printed by --list-faults and asserted on in tests/test_harness.py, so
 #: a fault cannot be added without saying which defence it exercises.
 FAULTS: dict[str, str] = {
-    "tmds-404": (
-        "TMDSDivSta.CGI serves the HTML 'not found' body with status 200. Proves an absent "
-        "endpoint is recorded as a capability and does not fail the update."
+    "tmds-present": (
+        "TMDSDivSta.CGI is served, as on a firmware that has the tab. The **default is absent**, "
+        "matching V1.41, where it returns the HTML 'not found' body with status 200. Proves the "
+        "capability is detected rather than assumed, in either direction."
     ),
     "no-support": (
         "Every command answers NO SUPPORT. Proves the refusal is recognised rather than parsed "
@@ -361,6 +362,18 @@ class FakeMatrix:
         lines += [f"OUT{i + 1} SGM {'EN' if st.test_pattern[i] else 'DIS'}" for i in range(n)]
         lines += [f"IN{i + 1} TMDS {'ON' if st.input_power[i] else 'OFF'}" for i in range(n)]
         lines += [f"IN{i + 1} EDID {st.edid_index[i]}" for i in range(n)]
+        # Network configuration, which the real GET STA carries and this did not. Six lines the
+        # grammar deliberately drops -- and until scripts/probe_fidelity.py compared the two, the
+        # "an unrecognised line is dropped" test (T-N2) was only ever fed invented garbage, never
+        # the lines the device actually sends. Values match the HTTP NetSta body above, because
+        # the whole point of this fake is that one model serves both wires.
+        lines += [
+            "RIP 10.0.0.1",
+            "HIP 10.0.0.254",
+            "NMK 255.255.255.0",
+            "TIP 23",
+            "DHCP 0",
+        ]
         lines += [f"MAC {st.mac.replace(':', '.').lower()}"]
         return "".join(f"{line}\r\n" for line in lines)
 
@@ -479,8 +492,12 @@ class FakeMatrix:
                 return f"NetSta={mac}&10.0.0.1&255.255.255.0&10.0.0.254&23&STATICIP&{names}"
 
             case "TMDSDivSta.CGI":
-                # Absent on the firmware this was developed against.
-                return None if "tmds-404" in self.faults else "TmdsSta=T1AON&T2AON&T3AON&T4AON"
+                # Absent by default, because it is absent on the only firmware this has ever run
+                # against. The default used to *serve* it, with a comment directly above saying it
+                # was absent on V1.41 -- so every test that did not opt into the old `tmds-404`
+                # fault was exercising a tab the real matrix does not have. Found by
+                # scripts/probe_fidelity.py, which exists for exactly this class of drift.
+                return "TmdsSta=T1AON&T2AON&T3AON&T4AON" if "tmds-present" in self.faults else None
 
             case _ if path.endswith("SendCmd.CGI"):
                 return self._apply(path, request.query.get("button", ""))

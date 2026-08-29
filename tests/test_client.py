@@ -45,7 +45,12 @@ async def _client(session, fake: FakeMatrix, **kwargs) -> AvProClient:
 
 
 async def test_reads_every_status_endpoint(session) -> None:
-    async with FakeMatrix() as fake:
+    """``tmds-present`` because the default fake matches V1.41, which lacks that tab.
+
+    Reading every endpoint is the point of this test, so it opts into a firmware that has them all
+    rather than quietly skipping one.
+    """
+    async with FakeMatrix(faults={"tmds-present"}) as fake:
         client = await _client(session, fake)
         for endpoint in StatusEndpoint:
             parsed = await client.async_read(endpoint)
@@ -78,18 +83,29 @@ async def test_the_body_is_decoded_without_charset_detection(session) -> None:
 
 
 async def test_an_absent_endpoint_reports_not_found_and_does_not_raise(session) -> None:
-    """The whole point: this arrives as 200 with an HTML body."""
-    async with FakeMatrix(faults={"tmds-404"}) as fake:
+    """The whole point: this arrives as 200 with an HTML body.
+
+    No fault required. TMDS is absent on the default fake because it is absent on the firmware in
+    the house, so this is the ordinary case rather than an injected one.
+    """
+    async with FakeMatrix() as fake:
         client = await _client(session, fake)
         parsed = await client.async_read(StatusEndpoint.TMDS)
         assert parsed.outcome is ParseOutcome.NOT_FOUND
 
 
 async def test_an_absent_endpoint_does_not_affect_the_others(session) -> None:
-    async with FakeMatrix(faults={"tmds-404"}) as fake:
+    async with FakeMatrix() as fake:
         client = await _client(session, fake)
         assert (await client.async_read(StatusEndpoint.TMDS)).outcome is ParseOutcome.NOT_FOUND
         assert (await client.async_read(StatusEndpoint.VIDEO)).ok
+
+
+async def test_the_tab_reads_normally_on_a_firmware_that_has_it(session) -> None:
+    """The other direction: absence must be *detected*, not assumed either way."""
+    async with FakeMatrix(faults={"tmds-present"}) as fake:
+        client = await _client(session, fake)
+        assert (await client.async_read(StatusEndpoint.TMDS)).ok
 
 
 @pytest.mark.parametrize(

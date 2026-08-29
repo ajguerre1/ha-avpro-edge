@@ -270,6 +270,54 @@ def test_merge_lets_the_later_report_win() -> None:
     assert a.merge(b).get("video_route_1") == 3
 
 
+# ---------------------------------------------------------------------------------------------
+# T-N2 -- the lines the device really sends and this grammar really drops
+# ---------------------------------------------------------------------------------------------
+#
+# Locked in from scripts/probe_fidelity.py, which compared a live GET STA against the fake's and
+# found the fake was not emitting the six network lines the matrix actually sends. Until then
+# "an unrecognised line is dropped" was only ever tested against invented garbage -- a made-up
+# input proving a made-up case. The probe needs the hardware and cannot run in CI, so what it
+# established is pinned here instead.
+
+#: Verbatim shapes from a real dump, with invented values. These are dropped on purpose: the
+#: integration has no business reporting the matrix's address, and non-goals forbid changing it.
+REAL_UNPARSED_LINES = ("RIP 10.0.0.1", "HIP 10.0.0.254", "NMK 255.255.255.0", "TIP 23", "DHCP 0")
+
+
+def test_the_network_lines_the_device_sends_are_dropped_cleanly() -> None:
+    """T-N2. Each one individually yields nothing, rather than a half-parsed key."""
+    for line in REAL_UNPARSED_LINES:
+        assert tp.parse_line(line) is None, f"{line!r} should not parse"
+
+
+def test_the_network_lines_do_not_disturb_the_census_around_them() -> None:
+    """T-N2. Dropping a line must not cost the lines either side of it.
+
+    The failure this guards against is subtle: a grammar that consumed one line too many would
+    lose a route and look exactly like a device that had not reported it.
+    """
+    clean = tp.parse_lines(CENSUS, complete=True)
+    interleaved = "\n".join(
+        [*CENSUS.strip().splitlines()[:3], *REAL_UNPARSED_LINES, *CENSUS.strip().splitlines()[3:]]
+    )
+    assert tp.parse_lines(interleaved, complete=True).values == clean.values
+
+
+def test_the_fake_sends_the_network_lines_the_real_matrix_does() -> None:
+    """Otherwise the two tests above are checking a case the harness never produces."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    from fake_avpro import FakeMatrix
+
+    sent = FakeMatrix().telnet_status().splitlines()
+    for line in REAL_UNPARSED_LINES:
+        keyword = line.split()[0]
+        assert any(s.startswith(keyword) for s in sent), f"the fake omits {keyword}"
+
+
 def test_merging_is_associative() -> None:
     """T-R3. How reports are grouped while folding cannot change the result.
 
