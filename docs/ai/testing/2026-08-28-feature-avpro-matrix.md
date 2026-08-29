@@ -126,6 +126,9 @@ reason it cannot have one.
 - [ ] T-L3 Change a route from the matrix's web page; confirm Home Assistant reflects it in < 2 s (S2)
 - [ ] T-L4 Pull power to the matrix; confirm entities go unavailable and recover with no restart
 - [ ] T-L5 Install from HACS as a custom repository, end to end (S3)
+- [ ] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON* — the option
+      count is measured, but the labels come from the Control4 driver's list order and cannot be
+      observed over either wire
 
 ## Test Data
 

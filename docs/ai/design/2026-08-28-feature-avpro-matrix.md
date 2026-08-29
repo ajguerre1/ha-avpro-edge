@@ -99,6 +99,32 @@ Note the EDID row: telnet says `30`, HTTP says `EDIDU1`, and both normalise to t
 `user_1`. The two vocabularies were independently confirmed to describe the same 33 presets, so
 this is a mapping rather than a guess.
 
+### `lcd_timeout` — how many options, and what they mean
+
+Two different questions, with two different levels of evidence. Worth separating, because the
+answer becomes user-facing labels in a `select` and a wrong label is indistinguishable from a
+right one until somebody stands in front of the matrix.
+
+**How many: measured.** `scripts/probe_lcd_keylock.py` against the live unit on 2026-08-29 wrote
+`SET LCD ON T{n}` for n in 0–5 and read each back from `GET STA`:
+
+| Written | Result |
+|---|---|
+| `T0` `T1` `T2` `T3` | accepted, each reads back |
+| `T4` `T5` | **rejected** — the value stays at `T3` |
+
+So there are exactly four, and the boundary is real rather than assumed. The unit was found at
+`T2` and restored to `T2`; key lock was found `OFF`, round-tripped both ways, and restored `OFF`.
+
+**What they mean: inferred.** The Control4 driver's `Set LCD Remain On Time` offers four items in
+this order — **Always ON, 15sec, 30sec, 60sec** — and four options mapping onto four accepted
+values in order is good corroboration from the vendor's own source.
+
+It is still not a measurement. The backlight timeout cannot be observed over either wire, so
+confirming that `T0` really is *Always ON* rather than *15sec* needs a person watching the front
+panel. That is a live check (`T-L6`), not something a probe can close. Until then the labels come
+from AVPro's driver rather than from this unit, and this paragraph is the reason to believe them.
+
 ## API Design
 
 **How do components communicate?**

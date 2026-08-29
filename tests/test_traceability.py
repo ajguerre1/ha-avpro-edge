@@ -64,6 +64,7 @@ DEFERRED: dict[str, str] = {
     "T-L3": "live tier: needs a human at the matrix's web page",
     "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
     "T-L5": "live tier: installing from HACS happens on the live Home Assistant",
+    "T-L6": "live tier: the LCD backlight timeout is only observable by a person at the matrix",
 }
 
 
