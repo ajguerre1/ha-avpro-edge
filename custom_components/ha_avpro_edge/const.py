@@ -102,6 +102,20 @@ WRITE_SETTLE_WINDOW: Final = 1.0
 #: chance to land first and resolve the entry cleanly.
 WRITE_EXPIRY_MARGIN: Final = 0.5
 
+#: How long an input's TMDS is held off during a hot-plug reset.
+#:
+#: **Not measured, unlike every other timing constant here, and the exception is deliberate rather
+#: than an oversight.** What this needs to be is a property of the *source device* rather than of
+#: the matrix: long enough for a set-top box or console to notice its hot-plug line drop and
+#: re-read the EDID when it returns. Nothing on either wire can report whether that happened, so
+#: no probe against the matrix can establish it -- only watching a real source recover can.
+#:
+#: One second is the conventional figure for HDMI hot-plug signalling and is comfortably above the
+#: ~100 ms most sinks need. Erring long costs a slightly longer blank; erring short means the
+#: source never notices and the button silently does nothing, which is much worse. Confirmed by
+#: T-L7 when a real source is available.
+HOT_PLUG_RESET_HOLD: Final = 1.0
+
 # ---------------------------------------------------------------------------------------------
 # State keys
 # ---------------------------------------------------------------------------------------------

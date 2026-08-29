@@ -109,6 +109,20 @@ reason it cannot have one.
 - [x] T-E5 Signal is supplemented over HTTP when telnet is active — telnet cannot read it at all
 - [x] T-E6 `manifest.json` declares `local_push`
 
+### T-G — Control4 parity (M-G)
+
+The functions the Control4 driver has that this did not. Scoped against what that driver *does*,
+which is the only definition of "parity" that matters — the matrix loses its dependency when
+nothing is left that only C4 can do.
+
+- [x] T-G1 Input hot plug reset drops the input's TMDS and restores it, through the same overlay
+      every other write uses
+- [x] T-G2 `route_all` is registered as an action at setup, and routes every output
+- [x] T-G3 `send_command` returns the device's own reply, so `NO SUPPORT` is visible rather than
+      indistinguishable from success
+- [x] T-G4 `send_command` **cannot** reach the network or factory-reset endpoints — they are
+      absent from the mapping, not merely rejected by validation
+
 ### T-W — Write semantics (already passing; must stay passing)
 
 - [x] T-W1 One command produces exactly one state write

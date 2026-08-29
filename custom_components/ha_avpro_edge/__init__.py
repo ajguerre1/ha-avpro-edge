@@ -25,6 +25,7 @@ from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .avpro.client import AvProClient, AvProConnectionError
 from .avpro.http_decode import decode
@@ -41,17 +42,30 @@ from .const import (
     PUSH_SAFETY_NET_INTERVAL,
 )
 from .coordinator import AvProCoordinator
+from .services import async_register_services
 from .transport_select import async_select_transport, async_watch_for_telnet, wants_telnet
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.MEDIA_PLAYER,
     Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
 ]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the actions once, for the integration rather than per entry.
+
+    Per the ``action-setup`` quality-scale rule. An automation referencing ``route_all`` should
+    validate whether or not a matrix happens to be loaded right now -- otherwise a device that is
+    briefly unreachable at startup turns every automation using it into a configuration error.
+    """
+    async_register_services(hass)
+    return True
 
 
 @dataclass

@@ -65,6 +65,15 @@
         "telnet": "Telnet only",
         "http": "HTTP only — never use the control socket"
       }
+    },
+    "send_command_endpoint": {
+      "options": {
+        "video": "Video routing",
+        "audio": "Audio",
+        "system": "System",
+        "edid": "EDID",
+        "tmds": "TMDS"
+      }
     }
   },
   "entity": {
@@ -205,6 +214,11 @@
       "signal_present": {
         "name": "Port {index} signal present"
       }
+    },
+    "button": {
+      "hot_plug_reset": {
+        "name": "Input {index} hot plug reset"
+      }
     }
   },
   "exceptions": {
@@ -219,12 +233,55 @@
     },
     "invalid_port_name": {
       "message": "That port name cannot be used: {reason}."
+    },
+    "unknown_entry": {
+      "message": "No AVPro Edge matrix is configured with the id {entry_id}."
+    },
+    "entry_not_loaded": {
+      "message": "{title} is not loaded, so it cannot be commanded right now."
+    },
+    "send_command_failed": {
+      "message": "The matrix did not accept the command: {error}"
     }
   },
   "issues": {
     "telnet_unavailable": {
       "title": "{name}: the control socket is unavailable",
       "description": "Home Assistant could not open the telnet control port on {name} and is running on the HTTP interface instead.\n\nThe matrix is still controllable, but output stream state, input power, key lock and the LCD timeout cannot be read on this wire, so those controls are missing, and changes are polled rather than pushed.\n\nNothing else should be holding this port. The usual causes are a matrix that is rebooting, a network interruption, or a control session left open by another system. Home Assistant re-checks every minute and reloads by itself once the port is free; this message will disappear on its own when it does."
+    }
+  },
+  "services": {
+    "route_all": {
+      "name": "Route all outputs",
+      "description": "Sends every output to one input in a single command, rather than one command per output.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Matrix",
+          "description": "Which matrix to route."
+        },
+        "source": {
+          "name": "Input",
+          "description": "The input number every output should be routed to."
+        }
+      }
+    },
+    "send_command": {
+      "name": "Send command",
+      "description": "Sends a raw command to the matrix, for anything this integration does not model. Returns the device's reply, which matters because unsupported commands are answered with 'NO SUPPORT' rather than an error. Commands that would change the matrix's network configuration or factory-reset it cannot be reached.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Matrix",
+          "description": "Which matrix to command."
+        },
+        "endpoint": {
+          "name": "Endpoint",
+          "description": "Which part of the matrix the command is addressed to."
+        },
+        "command": {
+          "name": "Command",
+          "description": "The command code, as the device's own web interface sends it, for example O1I2 to route output 1 to input 2. Letters and digits only."
+        }
+      }
     }
   }
 }

@@ -33,6 +33,8 @@ async def test_the_expected_entities_are_registered(hass: HomeAssistant, loaded_
     assert by_platform["switch"] == 4 + 4 + 4 + 4 + 1
     assert by_platform["sensor"] == 4
     assert by_platform["binary_sensor"] == 4
+    # One hot-plug reset per input, for Control4 parity.
+    assert by_platform["button"] == 4
     # 4 outputs x 4 settings, 4 inputs x EDID, plus device-level bind mode and LCD timeout.
     assert by_platform["select"] == 16 + 4 + 2
 

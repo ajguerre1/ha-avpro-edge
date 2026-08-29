@@ -23,6 +23,7 @@ disagreement with another control system into two controllers fighting indefinit
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import Counter
 from collections.abc import Callable
@@ -45,6 +46,8 @@ from .avpro.state import MatrixState
 from .avpro.transport import Transport
 from .const import (
     DOMAIN,
+    HOT_PLUG_RESET_HOLD,
+    KEY_INPUT_POWER,
     KEY_VIDEO_ROUTE,
     WRITE_EXPIRY_MARGIN,
     WRITE_SETTLE_WINDOW,
@@ -221,6 +224,23 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
         # poll out by a full interval on every write.
         self.async_update_listeners()
         await self.async_request_refresh()
+
+    async def async_hot_plug_reset(self, index: int) -> None:
+        """Drop an input's TMDS and bring it back, so the source renegotiates.
+
+        The one function in the Control4 driver with no counterpart here. It is not a new protocol
+        operation: dropping the hot-plug line an input presents to its source and restoring it
+        *is* a hot-plug event, which is what makes a set-top box that has settled on the wrong
+        resolution -- or on nothing at all -- start again.
+
+        Both halves go through :meth:`async_set`, so the overlay, the settle window and the
+        never-re-send rule apply exactly as they do to any other write. Driving it with raw
+        commands would bypass the machinery that keeps this from fighting the front panel.
+        """
+        key = port_key(KEY_INPUT_POWER, index)
+        await self.async_set(key, False)
+        await asyncio.sleep(HOT_PLUG_RESET_HOLD)
+        await self.async_set(key, True)
 
     async def async_route_all(self, source: int) -> None:
         """Route every output to one input, in one request rather than one per output."""
