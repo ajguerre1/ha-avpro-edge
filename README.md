@@ -94,6 +94,17 @@ imports and runs anywhere.
 `tools/fake_avpro.py` is a fake matrix that speaks the real CGI protocol with fault injection, so
 the client can be developed and tested without touching hardware.
 
+## Trademarks
+
+**AVPro Edge** and the AVPro Edge logo are trademarks of their owner. This project is an
+independent integration and is **not affiliated with, endorsed by, or supported by AVPro Edge**.
+
+The mark appears under `custom_components/ha_avpro_edge/brand/` for one reason: to identify which
+device the integration controls, which is what an integration icon in Home Assistant is for. It is
+generated from the manufacturer's wordmark by `scripts/make_brand_icons.py`, and the artwork
+remains the property of its owner.
+
 ## License
 
-MIT
+MIT — covering the code in this repository. The licence does not extend to the AVPro Edge marks
+under `brand/` and `assets/`; see **Trademarks** above.
