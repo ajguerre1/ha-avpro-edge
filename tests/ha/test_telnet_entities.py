@@ -10,6 +10,8 @@ entities enabled by default.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from homeassistant.core import HomeAssistant
 
@@ -26,6 +28,24 @@ async def _setup(hass: HomeAssistant, fake, **options):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
+
+
+async def _until(hass: HomeAssistant, condition, *, what: str) -> None:
+    """Wait for the device to actually apply a write.
+
+    ``async_block_till_done`` settles Home Assistant's own event loop and nothing else. A telnet
+    command crosses a real socket to the fake, which applies it and announces it back, so the
+    assertion has to wait for the device rather than for the framework.
+
+    Polled rather than slept: a sleep long enough for a loaded CI runner is dead time on every
+    passing run, and one tuned on the development box is a flake in CI.
+    """
+    for _ in range(40):
+        await asyncio.sleep(0.05)
+        await hass.async_block_till_done()
+        if condition():
+            return
+    raise AssertionError(f"timed out waiting for {what}")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -117,9 +137,11 @@ async def test_stream_is_real_state_rather_than_a_remembered_guess(
     # Changed on the device, not through us: a remembered value could not follow this.
     fake.state.stream[0] = False
     await entry.runtime_data.coordinator.async_refresh()
-    await hass.async_block_till_done()
-
-    assert hass.states.get("switch.ac_mx44_auhd_output_1_stream").state == "off"
+    await _until(
+        hass,
+        lambda: hass.states.get("switch.ac_mx44_auhd_output_1_stream").state == "off",
+        what="the out-of-band stream change to reach the entity",
+    )
 
 
 async def test_stream_survives_a_reload_because_it_is_read_not_remembered(
@@ -144,8 +166,11 @@ async def test_input_power_reflects_the_tmds_line(hass: HomeAssistant, fake) -> 
 
     fake.state.input_power[0] = False
     await coordinator.async_refresh()
-    await hass.async_block_till_done()
-    assert coordinator.optimistic("input_power_1") is False
+    await _until(
+        hass,
+        lambda: coordinator.optimistic("input_power_1") is False,
+        what="the TMDS change to be read back",
+    )
 
 
 async def test_key_lock_reads_and_writes(hass: HomeAssistant, fake) -> None:
@@ -156,8 +181,8 @@ async def test_key_lock_reads_and_writes(hass: HomeAssistant, fake) -> None:
     assert coordinator.optimistic("key_lock") is False
 
     await coordinator.async_set("key_lock", True)
-    await hass.async_block_till_done()
-    assert fake.state.key_lock is True
+    await _until(hass, lambda: fake.state.key_lock is True, what="the key lock write to land")
+
     assert any("SET KEY LOCK ON" in c.upper() for c in fake.telnet_commands)
 
 
@@ -172,9 +197,8 @@ async def test_the_lcd_timeout_reads_and_writes_by_label(hass: HomeAssistant, fa
     assert coordinator.optimistic("lcd_timeout") is LcdTimeout.SECONDS_30
 
     await coordinator.async_set("lcd_timeout", LcdTimeout.ALWAYS_ON)
-    await hass.async_block_till_done()
+    await _until(hass, lambda: fake.state.lcd_timeout == 0, what="the LCD write to land")
 
-    assert fake.state.lcd_timeout == 0
     assert any("SET LCD ON T0" in c.upper() for c in fake.telnet_commands)
 
 
@@ -239,9 +263,8 @@ async def test_turning_an_output_off_stops_its_stream(hass: HomeAssistant, fake)
         {"entity_id": "media_player.ac_mx44_auhd_output_1"},
         blocking=True,
     )
-    await hass.async_block_till_done()
+    await _until(hass, lambda: fake.state.stream[0] is False, what="the stream write to land")
 
-    assert fake.state.stream[0] is False
     assert hass.states.get("media_player.ac_mx44_auhd_output_1").state == "off"
 
 

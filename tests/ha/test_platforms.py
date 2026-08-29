@@ -87,12 +87,29 @@ async def test_the_output_name_is_an_attribute_not_the_entity_name(
     assert "OutA" not in ENTITY
 
 
-async def test_it_declares_only_source_selection(hass: HomeAssistant, loaded_entry) -> None:
-    """No volume, no mute, no on/off: none of them are real on this model."""
+async def test_it_declares_no_volume_or_mute_on_any_transport(
+    hass: HomeAssistant, loaded_entry
+) -> None:
+    """Neither is real on this model, whatever the wire.
+
+    This used to assert ``== SELECT_SOURCE`` exactly, which stopped being true when on/off became
+    available on telnet -- see T-E4. Volume and mute are the durable claim: the model has no volume
+    at all, and the extracted-audio enable is a separate de-embedded feed that does not change what
+    the room hears, so wiring ``volume_mute`` to it would misreport the hardware.
+    """
     from homeassistant.components.media_player import MediaPlayerEntityFeature
 
     features = hass.states.get(ENTITY).attributes["supported_features"]
-    assert features == MediaPlayerEntityFeature.SELECT_SOURCE
+    for absent in (
+        MediaPlayerEntityFeature.VOLUME_SET,
+        MediaPlayerEntityFeature.VOLUME_STEP,
+        MediaPlayerEntityFeature.VOLUME_MUTE,
+        MediaPlayerEntityFeature.PLAY,
+        MediaPlayerEntityFeature.PAUSE,
+        MediaPlayerEntityFeature.STOP,
+    ):
+        assert not features & absent, f"{absent.name} is not real on this hardware"
+    assert features & MediaPlayerEntityFeature.SELECT_SOURCE
 
 
 async def test_a_port_with_no_signal_reports_idle_not_off(
