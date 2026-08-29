@@ -1,0 +1,39 @@
+route_all:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: ha_avpro_edge
+    source:
+      required: true
+      example: 2
+      selector:
+        number:
+          min: 1
+          max: 16
+          mode: box
+
+send_command:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: ha_avpro_edge
+    endpoint:
+      required: true
+      selector:
+        select:
+          translation_key: send_command_endpoint
+          options:
+            - video
+            - audio
+            - system
+            - edid
+            - tmds
+    command:
+      required: true
+      example: O1I2
+      selector:
+        text:

@@ -66,6 +66,15 @@
       "signal_present": {
         "default": "mdi:video-input-hdmi"
       }
+    },
+    "button": {
+      "hot_plug_reset": {
+        "default": "mdi:connection"
+      }
     }
+  },
+  "services": {
+    "route_all": "mdi:call-split",
+    "send_command": "mdi:console-line"
   }
 }
