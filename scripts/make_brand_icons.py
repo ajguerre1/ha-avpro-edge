@@ -65,10 +65,17 @@ WHITE_CUTOFF = 240
 AV_LIGATURE = (30, 216, 257, 382)
 FULL_WORDMARK = (30, 216, 569, 382)
 
-#: Fraction of the icon's width left clear around the artwork. Home Assistant puts integration
-#: icons directly against a card edge, so a mark that runs to the bounding box looks cramped
-#: beside icons that do not.
-ICON_MARGIN = 0.10
+#: No margin at all. The Home Assistant brands specification says the image "should be trimmed,
+#: so it contains the minimum amount of empty space on the edges", and real entries confirm it --
+#: `custom_integrations/spook` has ink running to all four edges of its 256x256 icon with zero
+#: padding. An earlier draft here used a 10% margin because it looked better in isolation, which
+#: is the wrong frame: these are rendered in a grid beside a thousand other icons that are
+#: trimmed, so padding makes this one look small rather than tidy.
+#:
+#: The AV ligature is 1.37:1, so it fills the width exactly and the aspect ratio alone decides
+#: what is left above and below. That is the minimum empty space achievable for a mark that is
+#: not square.
+ICON_MARGIN = 0.0
 
 #: How far ink colour is pushed into the transparent region before downsampling. Three pixels
 #: comfortably covers the ~2.3-pixel kernel of a 600 -> 256 Lanczos reduction.
@@ -134,6 +141,13 @@ def render(
     return canvas
 
 
+def _logo_size(height: int) -> tuple[int, int]:
+    """Canvas for the wordmark at a given height, preserving its aspect ratio."""
+    left, top, right, bottom = FULL_WORDMARK
+    aspect = (right - left + 1) / (bottom - top + 1)
+    return (round(height * aspect), height)
+
+
 def main() -> int:
     if not SOURCE.exists():
         print(f"source artwork not found: {SOURCE}")
@@ -147,10 +161,12 @@ def main() -> int:
         # Square, from the AV ligature. Sizes fixed by the Home Assistant brands specification.
         "icon.png": (AV_LIGATURE, (256, 256), ICON_MARGIN),
         "icon@2x.png": (AV_LIGATURE, (512, 512), ICON_MARGIN),
-        # Wide, from the whole wordmark. Trimmed rather than padded: a logo is placed by whatever
-        # is drawing it, so built-in whitespace only fights that.
-        "logo.png": (FULL_WORDMARK, (512, 159), 0.0),
-        "logo@2x.png": (FULL_WORDMARK, (1024, 317), 0.0),
+        # Wide, from the whole wordmark. The specification constrains the *shortest* side --
+        # 128-256 for the base and 256-512 for hDPI, "maximum preferred" -- and leaves the long
+        # side to the brand's own aspect ratio. spook ships 500x128 and 1000x256 on exactly that
+        # basis. The wordmark is 3.23:1, so a 256-tall logo is 827 wide.
+        "logo.png": (FULL_WORDMARK, _logo_size(256), 0.0),
+        "logo@2x.png": (FULL_WORDMARK, _logo_size(512), 0.0),
     }
 
     for name, (box, size, margin) in outputs.items():
