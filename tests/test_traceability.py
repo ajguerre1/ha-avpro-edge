@@ -54,11 +54,6 @@ RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
 #:   and several of them are disruptive enough to require the owner present (T-L2 blanks a
 #:   display; T-L4 pulls power). They are checked off by hand in the doc, with evidence.
 DEFERRED: dict[str, str] = {
-    "T-E1": "M-E: switch.output_N_stream is not built yet",
-    "T-E2": "M-E: switch.input_N_power is not built yet",
-    "T-E3": "M-E: the key-lock and LCD-timeout entities are not built yet",
-    "T-E4": "M-E: media_player does not advertise TURN_ON/TURN_OFF from capabilities yet",
-    "T-E6": "M-E: iot_class is still local_polling in the manifest",
     "T-L1": "live tier: needs the real matrix, and routing an output is visible on a wall panel",
     "T-L2": "live tier: toggling OUT1 STREAM blanks a display -- owner must be present",
     "T-L3": "live tier: needs a human at the matrix's web page",

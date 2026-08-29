@@ -154,6 +154,45 @@ CODE_BY_BIND_MODE: Final[dict[BindMode, int]] = {v: k for k, v in BIND_MODE_BY_C
 
 
 # ---------------------------------------------------------------------------------------------
+# LCD backlight timeout -- wire codes T{0-3}, telnet only
+# ---------------------------------------------------------------------------------------------
+
+
+class LcdTimeout(StrEnum):
+    """How long the matrix's own front-panel backlight stays lit.
+
+    Telnet only: the CGI interface has no status endpoint for it.
+
+    **Two claims here with different evidence**, and the difference matters because these become
+    user-facing labels, where a wrong one is indistinguishable from a right one.
+
+    *That there are exactly four* is **measured**. ``scripts/probe_lcd_keylock.py`` wrote
+    ``SET LCD ON T{n}`` for n in 0-5 against the live matrix and read each back from ``GET STA``:
+    0-3 accepted, 4 and 5 refused with the value staying at 3.
+
+    *What each one means* is **inferred**, from the Control4 driver's ``Set LCD Remain On Time``
+    listing exactly these four in this order. Four labels mapping onto four accepted values in
+    order is good corroboration from the vendor's own source -- but a backlight timeout cannot be
+    observed over either wire, so confirming ``T0`` really is *always on* rather than *15 seconds*
+    needs a person at the front panel. Tracked as T-L6.
+    """
+
+    ALWAYS_ON = "always_on"
+    SECONDS_15 = "seconds_15"
+    SECONDS_30 = "seconds_30"
+    SECONDS_60 = "seconds_60"
+
+
+LCD_TIMEOUT_BY_CODE: Final[dict[int, LcdTimeout]] = {
+    0: LcdTimeout.ALWAYS_ON,
+    1: LcdTimeout.SECONDS_15,
+    2: LcdTimeout.SECONDS_30,
+    3: LcdTimeout.SECONDS_60,
+}
+CODE_BY_LCD_TIMEOUT: Final[dict[LcdTimeout, int]] = {v: k for k, v in LCD_TIMEOUT_BY_CODE.items()}
+
+
+# ---------------------------------------------------------------------------------------------
 # EDID -- wire tokens are the same in both directions
 # ---------------------------------------------------------------------------------------------
 #

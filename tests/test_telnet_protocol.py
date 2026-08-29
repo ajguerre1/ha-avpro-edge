@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 from avpro import telnet_protocol as tp
-from avpro.models import AudioDelay, BindMode, ImageEnhancement, ScalerMode
+from avpro.models import AudioDelay, BindMode, ImageEnhancement, LcdTimeout, ScalerMode
 from avpro.report import EMPTY, DeviceReport
 
 #: The shape of a real GET STA reply. Invented values.
@@ -88,7 +88,7 @@ MAC aa.bb.cc.dd.ee.ff
         ("OUT2 STREAM OFF", ("stream_2", False)),
         ("IN1 TMDS ON", ("input_power_1", True)),
         ("KEY LOCK OFF", ("key_lock", False)),
-        ("LCD ON T2", ("lcd_timeout", 2)),
+        ("LCD ON T2", ("lcd_timeout", LcdTimeout.SECONDS_30)),
         ("ADDR 00", ("address", "00")),
     ],
 )

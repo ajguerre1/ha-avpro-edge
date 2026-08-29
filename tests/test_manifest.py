@@ -63,13 +63,20 @@ def test_there_are_no_runtime_dependencies() -> None:
     assert MANIFEST["dependencies"] == []
 
 
-def test_the_iot_class_says_polling() -> None:
-    """This device offers no push transport that can be used.
+def test_the_iot_class_says_push() -> None:
+    """T-E6. The primary transport is pushed to, so the manifest has to say so.
 
-    The telnet interface does push, but it accepts one client and that client is the house's
-    control system. Polling is the deliberate consequence, not an oversight.
+    This asserted ``local_polling`` for as long as the telnet socket was assumed to belong to the
+    house's control system -- "this device offers no push transport that can be used" was true of
+    the installation, not of the device. It is not true here: Home Assistant is the only thing
+    driving this matrix, telnet is primary, and the device volunteers changes on it within
+    ~300-400 ms.
+
+    ``local_push`` remains the honest answer even though the HTTP fallback polls. The class
+    describes what the integration normally is, and someone comparing integrations wants to know
+    that a routing change arrives rather than being waited for.
     """
-    assert MANIFEST["iot_class"] == "local_polling"
+    assert MANIFEST["iot_class"] == "local_push"
 
 
 def test_it_declares_itself_a_device_with_a_config_flow() -> None:

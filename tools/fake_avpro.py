@@ -7,7 +7,7 @@ Run it standalone::
 
 or drive it from a test::
 
-    async with FakeMatrix(faults={"tmds-404"}) as fake:
+    async with FakeMatrix(faults={"tmds-present"}) as fake:
         client = AvProClient(session, fake.host)
 
 Built on ``aiohttp.web``, which the vendored client already depends on, so the fake costs no
@@ -137,6 +137,10 @@ class MatrixModel:
     #: transports are not interchangeable.
     stream: list[bool] = field(default_factory=lambda: [True] * 4)
     input_power: list[bool] = field(default_factory=lambda: [True] * 4)
+    key_lock: bool = False
+    #: Wire code, 0-3. The live matrix accepted T0-T3 and refused T4 and T5, so anything
+    #: outside that range must be rejected here too or a write test proves nothing.
+    lcd_timeout: int = 2
     #: EDID as telnet numbers it, 0-32. 30 is USER1_EDID, the same EDID HTTP calls EDIDU1.
     edid_index: list[int] = field(default_factory=lambda: [30] * 4)
     signals: list[str] = field(
@@ -350,7 +354,11 @@ class FakeMatrix:
         """A GET STA dump, in the real unit's order and spelling."""
         st = self.state
         n = st.ports
-        lines = ["ADDR 00", "LCD ON T2", "KEY LOCK OFF"]
+        lines = [
+            "ADDR 00",
+            f"LCD ON T{st.lcd_timeout}",
+            f"KEY LOCK {'ON' if st.key_lock else 'OFF'}",
+        ]
         lines += [f"OUT{i + 1} VS IN{st.video_routes[i]}" for i in range(n)]
         lines += [f"OUT{i + 1} VIDEO {st.scaler[i]}" for i in range(n)]
         lines += [f"OUT{i + 1} EXADL PH{st.audio_delay[i]}" for i in range(n)]

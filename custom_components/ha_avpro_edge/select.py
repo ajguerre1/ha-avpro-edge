@@ -20,7 +20,14 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AvProConfigEntry
-from .avpro.models import EDID_OPTIONS, AudioDelay, BindMode, ImageEnhancement, ScalerMode
+from .avpro.models import (
+    EDID_OPTIONS,
+    AudioDelay,
+    BindMode,
+    ImageEnhancement,
+    LcdTimeout,
+    ScalerMode,
+)
 from .avpro.state import MatrixState
 from .const import (
     KEY_AUDIO_DELAY,
@@ -28,6 +35,7 @@ from .const import (
     KEY_BIND_MODE,
     KEY_EDID,
     KEY_IMAGE_ENHANCEMENT,
+    KEY_LCD_TIMEOUT,
     KEY_SCALER,
     port_key,
 )
@@ -98,13 +106,25 @@ PER_INPUT: tuple[AvProSelectDescription, ...] = (
     ),
 )
 
-DEVICE_LEVEL = AvProSelectDescription(
-    key=KEY_BIND_MODE,
-    kind=KEY_BIND_MODE,
-    translation_key="bind_mode",
-    entity_category=EntityCategory.CONFIG,
-    entity_registry_enabled_default=False,
-    options_for=_enum_options(BindMode),
+DEVICE_LEVEL: tuple[AvProSelectDescription, ...] = (
+    AvProSelectDescription(
+        key=KEY_BIND_MODE,
+        kind=KEY_BIND_MODE,
+        translation_key="bind_mode",
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        options_for=_enum_options(BindMode),
+    ),
+    AvProSelectDescription(
+        key=KEY_LCD_TIMEOUT,
+        kind=KEY_LCD_TIMEOUT,
+        translation_key="lcd_timeout",
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+        # Exactly four, and that is measured rather than assumed: the live matrix accepted T0-T3
+        # and refused T4 and T5. See LcdTimeout for what is measured and what is still inferred.
+        options_for=_enum_options(LcdTimeout),
+    ),
 )
 
 
@@ -126,8 +146,11 @@ async def async_setup_entry(
         if coordinator.supports(description.kind)
         for index in range(1, ports + 1)
     ]
-    if coordinator.supports(DEVICE_LEVEL.kind):
-        entities.append(AvProSelect(coordinator, DEVICE_LEVEL, None))
+    entities += [
+        AvProSelect(coordinator, description, None)
+        for description in DEVICE_LEVEL
+        if coordinator.supports(description.kind)
+    ]
     async_add_entities(entities)
 
 

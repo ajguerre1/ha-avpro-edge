@@ -16,7 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from avpro.models import AudioDelay, BindMode, ImageEnhancement, ScalerMode
+from avpro.models import AudioDelay, BindMode, ImageEnhancement, LcdTimeout, ScalerMode
 from avpro.report import DeviceReport
 from avpro.telnet_client import TelnetBusy, TelnetError, TelnetTransport
 from fake_avpro import FakeMatrix
@@ -50,7 +50,7 @@ async def test_get_sta_returns_a_complete_census() -> None:
     assert report.get("stream_1") is True
     assert report.get("input_power_1") is True
     assert report.get("key_lock") is False
-    assert report.get("lcd_timeout") == 2
+    assert report.get("lcd_timeout") is LcdTimeout.SECONDS_30
     assert report.get("address") == "00"
 
 
@@ -255,7 +255,7 @@ async def test_writes_can_be_disabled_entirely() -> None:
         ("stream_1", False, "SET OUT1 STREAM OFF"),
         ("input_power_3", True, "SET IN3 TMDS ON"),
         ("key_lock", True, "SET KEY LOCK ON"),
-        ("lcd_timeout", 2, "SET LCD ON T2"),
+        ("lcd_timeout", LcdTimeout.SECONDS_30, "SET LCD ON T2"),
         ("edid_1", "user_1", "SET IN1 EDID 30"),
         ("edid_2", "preset_1", "SET IN2 EDID 0"),
         # A different command shape, not an index.

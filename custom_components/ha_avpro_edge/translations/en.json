@@ -168,6 +168,15 @@
           "copy_output_3": "Copy From Out3",
           "copy_output_4": "Copy From Out4"
         }
+      },
+      "lcd_timeout": {
+        "name": "Front panel backlight",
+        "state": {
+          "always_on": "Always on",
+          "seconds_15": "15 seconds",
+          "seconds_30": "30 seconds",
+          "seconds_60": "60 seconds"
+        }
       }
     },
     "switch": {
@@ -176,6 +185,15 @@
       },
       "test_pattern": {
         "name": "Output {index} test pattern"
+      },
+      "stream": {
+        "name": "Output {index} stream"
+      },
+      "input_power": {
+        "name": "Input {index} TMDS"
+      },
+      "key_lock": {
+        "name": "Front panel lock"
       }
     },
     "sensor": {

@@ -28,19 +28,26 @@ async def test_the_expected_entities_are_registered(hass: HomeAssistant, loaded_
         by_platform[entity.domain] = by_platform.get(entity.domain, 0) + 1
 
     assert by_platform["media_player"] == 4
-    assert by_platform["switch"] == 8  # extracted audio + test pattern, per output
+    # Per output: extracted audio, test pattern, stream. Per input: TMDS. Plus one key lock for
+    # the device. The last three arrived with telnet, which is the only wire that can read them.
+    assert by_platform["switch"] == 4 + 4 + 4 + 4 + 1
     assert by_platform["sensor"] == 4
     assert by_platform["binary_sensor"] == 4
-    # 4 outputs x 4 settings, 4 inputs x EDID, plus the device-level bind mode.
-    assert by_platform["select"] == 21
+    # 4 outputs x 4 settings, 4 inputs x EDID, plus device-level bind mode and LCD timeout.
+    assert by_platform["select"] == 16 + 4 + 2
 
 
 async def test_only_the_everyday_entities_are_enabled(hass: HomeAssistant, loaded_entry) -> None:
-    """Install-time settings stay disabled: every enabled entity fans state out to the panels."""
+    """Install-time settings stay disabled: every enabled entity fans state out to the panels.
+
+    The stream switches are the exception and are deliberate. Blanking a display is something
+    somebody does on a Tuesday evening, not once at commissioning, so it is the one control here
+    that earns its place on by default.
+    """
     entries = _registry_entries(hass, loaded_entry.entry_id)
     enabled = [e for e in entries if not e.disabled_by]
-    assert {e.domain for e in enabled} == {"media_player", "sensor"}
-    assert len(enabled) == 8
+    assert {e.domain for e in enabled} == {"media_player", "sensor", "switch"}
+    assert len(enabled) == 4 + 4 + 4
 
 
 async def test_unique_ids_are_scoped_to_the_entry(hass: HomeAssistant, loaded_entry) -> None:
