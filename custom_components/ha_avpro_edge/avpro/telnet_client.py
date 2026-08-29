@@ -139,10 +139,21 @@ class TelnetTransport:
     # -- lifecycle -----------------------------------------------------------------------
 
     async def async_connect(self) -> None:
-        """Open the connection and start reading.
+        """Open the connection and prove the device is actually talking on it.
 
-        Raises :class:`TelnetBusy` when the single slot is already held, which the caller uses to
-        decide whether to fall back rather than treating it as a hard failure.
+        Connecting is not enough of a check. A held control slot can present two ways, and both
+        were considered rather than assumed:
+
+        * **the handshake never completes** -- observed on the real unit, where three of four
+          simultaneous connections timed out; or
+        * **the handshake completes and nothing is ever said** -- which is what happens whenever
+          a listening socket's backlog absorbs the connection but the application never services
+          it. The kernel completes the handshake either way, so a client cannot tell by
+          connecting alone.
+
+        So the census doubles as the liveness check, and either shape raises
+        :class:`TelnetBusy`. That distinction is what lets the caller fall back to HTTP rather
+        than failing setup -- the device is there, it is simply not ours to talk to.
         """
         host, _, port = self._host.partition(":")
         try:
@@ -151,18 +162,30 @@ class TelnetTransport:
                 timeout=CONNECT_TIMEOUT,
             )
         except TimeoutError as err:
-            # A timeout here is what a taken slot looks like: the device accepts nothing while
-            # another client holds it, so the connection never completes rather than being
-            # refused. Distinguished from an outright refusal, which means nothing is listening.
             raise TelnetBusy(
                 f"{self._host}: the control socket did not accept a connection within "
                 f"{CONNECT_TIMEOUT}s -- another controller may be holding it"
             ) from err
         except OSError as err:
+            # Refused, unreachable, no route. The device is not there, which is a different
+            # problem from the device being busy and wants a different response.
             raise TelnetError(f"{self._host}: {err}") from err
 
-        self._failures = 0
         self._reader_task = asyncio.create_task(self._read_loop())
+
+        try:
+            # Deliberately discarded. Caching it to save one GET STA at setup would mean the
+            # caller's first read returns a census taken before anything it did -- a false
+            # economy that trades a stale reading for one round trip over an open socket.
+            await self.async_read_all()
+        except TelnetError as err:
+            await self.async_disconnect()
+            raise TelnetBusy(
+                f"{self._host}: connected but the device did not answer GET STA -- "
+                "another controller may be holding the control slot"
+            ) from err
+
+        self._failures = 0
 
     async def async_disconnect(self) -> None:
         """Close the connection and hand the socket back."""
