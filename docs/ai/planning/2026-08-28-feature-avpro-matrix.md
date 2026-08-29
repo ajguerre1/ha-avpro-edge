@@ -17,13 +17,16 @@ Testing: `docs/ai/testing/2026-08-28-feature-avpro-matrix.md`
 
 - [x] **M-A — HTTP transport working end to end.** Delivered before this lifecycle was run; see
       "Work completed ahead of the docs" below.
-- [ ] **M-B — Transport seam.** `DeviceReport` introduced, folds collapsed, HTTP moved behind the
+- [x] **M-B — Transport seam.** `DeviceReport` introduced, folds collapsed, HTTP moved behind the
       `Transport` interface. No behaviour change, no new features.
-- [ ] **M-C — Telnet transport.** Grammar, persistent client, push dispatch, fake device.
-- [ ] **M-D — Selection and fallback.** Auto/telnet/http option, capability-driven entities.
-- [ ] **M-E — The features telnet unlocks.** Stream, input power, key lock, LCD timeout, and real
+- [x] **M-C — Telnet transport.** Grammar, persistent client, push dispatch, fake device.
+- [x] **M-D — Selection and fallback.** Auto/telnet/http option, capability-driven entities.
+- [x] **M-E — The features telnet unlocks.** Stream, input power, key lock, LCD timeout, and real
       `turn_on`/`turn_off`.
-- [ ] **M-F — Verified on the live unit** and released.
+- [x] **M-G — Control4 parity.** Input hot plug reset and `send_command`, so the driver can go.
+      Added 2026-08-29 with goal G6; it did not exist when this plan was written.
+- [ ] **M-F — Verified on the live unit** and released. *(0.2.1 is released; nothing is verified
+      on hardware, which is the whole of what remains.)*
 
 ## Task Breakdown
 

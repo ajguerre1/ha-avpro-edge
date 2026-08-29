@@ -60,6 +60,7 @@ DEFERRED: dict[str, str] = {
     "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
     "T-L5": "live tier: installing from HACS happens on the live Home Assistant",
     "T-L6": "live tier: the LCD backlight timeout is only observable by a person at the matrix",
+    "T-L7": "live tier: only a real source can show whether it noticed the hot-plug drop",
 }
 
 
@@ -132,6 +133,38 @@ def test_nothing_is_deferred_that_was_never_declared() -> None:
     unknown = set(DEFERRED) - _declared()
     assert not unknown, "in DEFERRED but not declared in the testing doc:\n  " + "\n  ".join(
         sorted(unknown)
+    )
+
+
+def _cited() -> set[str]:
+    """Scenario IDs named outside the suite -- in the integration or the other phase docs.
+
+    The orphan check below originally scanned only ``tests/``, and something slipped straight
+    through the gap: ``T-L7`` was invented while documenting an unmeasured constant, cited in
+    ``const.py`` and the deployment checklist, and never declared in the testing doc. So it was
+    tracked by nothing -- which is the exact failure this whole module exists to prevent, created
+    a few hours after the module was written.
+
+    A citation is a claim that a scenario exists. It does not matter which file makes it.
+    """
+    roots = [ROOT / "custom_components", ROOT / "docs"]
+    found: set[str] = set()
+    for root in roots:
+        for path in root.rglob("*"):
+            if path.suffix not in {".py", ".md"} or "__pycache__" in path.parts:
+                continue
+            if path.resolve() == TESTING_DOC.resolve():
+                continue
+            found |= set(ID.findall(RANGE.sub(" ", path.read_text(encoding="utf-8"))))
+    return found
+
+
+def test_nothing_outside_the_suite_cites_an_undeclared_scenario() -> None:
+    """A scenario named in the code or a doc has to exist in the testing doc."""
+    orphans = _cited() - _declared()
+    assert not orphans, (
+        "cited outside tests/ but not declared in the testing doc:\n  "
+        + "\n  ".join(sorted(orphans))
     )
 
 

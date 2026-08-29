@@ -140,6 +140,10 @@ nothing is left that only C4 can do.
 - [ ] T-L3 Change a route from the matrix's web page; confirm Home Assistant reflects it in < 2 s (S2)
 - [ ] T-L4 Pull power to the matrix; confirm entities go unavailable and recover with no restart
 - [ ] T-L5 Install from HACS as a custom repository, end to end (S3)
+- [ ] T-L7 Press a hot plug reset against a source that has settled wrongly, and confirm it
+      renegotiates — `HOT_PLUG_RESET_HOLD` is the one timing constant here that is not measured,
+      because how long a hot-plug line must drop is a property of the *source*, and nothing on
+      either wire can report whether it noticed
 - [ ] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON* — the option
       count is measured, but the labels come from the Control4 driver's list order and cannot be
       observed over either wire
