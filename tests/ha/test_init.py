@@ -68,10 +68,15 @@ async def test_the_opening_http_read_covers_every_endpoint(hass: HomeAssistant, 
 
 
 async def test_an_absent_endpoint_does_not_prevent_setup(hass: HomeAssistant) -> None:
-    """This firmware genuinely lacks the TMDS tab. If that failed setup, nothing would load."""
+    """This firmware genuinely lacks the TMDS tab. If that failed setup, nothing would load.
+
+    No fault needed any more: the default fake is a model of V1.41, which does not have the tab.
+    These three used to pass ``tmds-404`` to *simulate* its absence, back when the fake served it
+    by default -- a default that did not match any hardware anyone has run this against.
+    """
     from fake_avpro import FakeMatrix
 
-    async with FakeMatrix(faults={"tmds-present"}) as fake:
+    async with FakeMatrix() as fake:
         entry = make_entry(
             fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP}
         )
@@ -86,7 +91,7 @@ async def test_an_absent_endpoint_is_recorded_and_never_re_requested(
 ) -> None:
     from fake_avpro import FakeMatrix
 
-    async with FakeMatrix(faults={"tmds-present"}) as fake:
+    async with FakeMatrix() as fake:
         entry = make_entry(
             fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP}
         )
@@ -109,7 +114,7 @@ async def test_an_absent_endpoint_is_recorded_and_never_re_requested(
 async def test_entities_are_created_despite_the_missing_endpoint(hass: HomeAssistant) -> None:
     from fake_avpro import FakeMatrix
 
-    async with FakeMatrix(faults={"tmds-present"}) as fake:
+    async with FakeMatrix() as fake:
         entry = make_entry(
             fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP}
         )
