@@ -156,6 +156,15 @@ dependency when nothing is left that only the driver can do.
 - [ ] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON* — the option
       count is measured, but the labels come from the vendor driver's list order and cannot be
       observed over either wire
+- [ ] T-L8 Unplug a source and read `INFDivSta.CGI` — does the matrix return an **empty field**
+      for that input, or does it leave the field alone? `_decode_info` maps a blank to `None`,
+      the same value as a port never read, so `binary_sensor.is_on` returns `True` or `None` and
+      **never `False`**: a CONNECTIVITY sensor whose *Disconnected* state is unreachable. If a
+      blank means "nothing connected", the decode should keep it and the sensor gains its
+      negative. If a blank is what the device sends for a port it did not measure, the present
+      behaviour is right and the binary sensor is the thing that should not exist. Nothing on
+      either wire distinguishes the two, and inverting it on a guess is how the fake came to
+      serve a TMDS tab this firmware does not have
 
 ## Test Data
 

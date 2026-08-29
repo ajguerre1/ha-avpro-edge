@@ -35,6 +35,32 @@ tidy. Turn on any you want in **Settings → Devices & services → AVPro Edge �
 
 ---
 
+## What people use it for
+
+**Send one thing everywhere.** Put the game on every screen in the house with a single button,
+then put everything back afterwards.
+
+**Movie night.** One scene that sets the room's display to the media player, switches the audio
+delay to match the projector, and dims the lights — because it is all in Home Assistant, it is one
+button rather than three remotes.
+
+**Turn a screen off without turning anything off.** The stream control blanks an output while
+leaving the source playing. Good for a kitchen display you want quiet during dinner, and for a
+screen that should go dark at bedtime without shutting down what is on it.
+
+**React to a source waking up.** Each port reports whether it currently has a picture, so an
+automation can bring up the right display when someone starts a console — and put it back when
+they stop.
+
+**Follow the person.** Combine with motion or presence and the same content moves from room to
+room as somebody walks through the house.
+
+**See what is on where.** Even with no automation at all, a dashboard card per display tells you
+what each screen is showing, which is usually the question being asked when somebody picks up a
+remote.
+
+---
+
 ## Before you start
 
 You need:

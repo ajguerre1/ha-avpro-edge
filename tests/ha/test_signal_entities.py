@@ -50,16 +50,55 @@ async def test_a_port_carrying_something_reports_on(
     assert hass.states.get(BINARY).state == STATE_ON
 
 
-async def test_a_port_carrying_nothing_reports_off(hass: HomeAssistant, fake, loaded_entry) -> None:
-    """An empty field is a real measurement: the matrix looked, and there was nothing."""
+async def test_a_port_carrying_nothing_currently_reports_unknown(
+    hass: HomeAssistant, fake, loaded_entry
+) -> None:
+    """This asserted `off` first, and `off` is unreachable.
+
+    An empty field is a real measurement -- the matrix looked and there was nothing -- but
+    `_decode_info` maps it to `None`, the same value as a port never read. `is_on` then answers
+    `None`, so a CONNECTIVITY binary sensor never reaches "Disconnected" on any transport.
+
+    Pinned as it behaves rather than as it arguably should, because which of the two is right
+    depends on what a real matrix returns for an unplugged input -- an observation nobody has
+    made yet. See `test_a_blank_field_is_indistinguishable_from_an_unread_one`. If that is
+    settled and the decode changes, this test failing is the correct outcome, not collateral.
+    """
     await _enable_binary_sensors(hass, loaded_entry)
     coordinator = loaded_entry.runtime_data.coordinator
+    assert hass.states.get(BINARY).state == STATE_ON
 
     fake.state.signals = ["", "", "", ""]
     await coordinator.async_refresh()
     await hass.async_block_till_done()
 
-    assert hass.states.get(BINARY).state == STATE_OFF
+    # Asserted separately, so a failure says whether the reading reached the coordinator or
+    # reached it and then failed to reach the entity.
+    assert coordinator.matrix.signals == (None, None, None, None)
+    assert hass.states.get(BINARY).state == STATE_UNKNOWN
+
+
+async def test_off_is_currently_unreachable_whatever_the_matrix_says(
+    hass: HomeAssistant, fake, loaded_entry
+) -> None:
+    """The consequence, stated as an assertion so it cannot be forgotten.
+
+    Every value `is_on` can return, over every signal string the device could plausibly send.
+    `STATE_OFF` is absent from the results -- not because no case produces it, but because none
+    can.
+    """
+    await _enable_binary_sensors(hass, loaded_entry)
+    coordinator = loaded_entry.runtime_data.coordinator
+
+    seen = set()
+    for reading in ("3840X2160P@60HZ YUV420", "", "1920X1080P@60HZ", "NO SIGNAL"):
+        fake.state.signals = [reading] * 4
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+        seen.add(hass.states.get(BINARY).state)
+
+    assert STATE_OFF not in seen, "off became reachable -- update the decode note and delete this"
+    assert seen == {STATE_ON, STATE_UNKNOWN}
 
 
 async def test_a_port_never_read_reports_unknown_not_off(hass: HomeAssistant) -> None:

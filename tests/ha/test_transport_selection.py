@@ -388,12 +388,27 @@ async def test_the_watcher_reloads_onto_telnet_once_the_socket_is_free(
 
             # Whatever was holding the socket has let go.
             fake.faults.discard("telnet-busy")
+            before = fake.telnet_connections
 
             async_fire_time_changed(
                 hass, dt_util.utcnow() + timedelta(seconds=TELNET_RETRY_INTERVAL + 1)
             )
             await hass.async_block_till_done()
 
+            # The probe crosses a real socket and the reload it triggers is a task, so a single
+            # block_till_done can return between the two. Poll rather than sleep a fixed amount:
+            # a duration tuned here is a flake on a slower runner.
+            for _ in range(40):
+                await asyncio.sleep(0.1)
+                await hass.async_block_till_done()
+                if entry.runtime_data.coordinator.transport.name == "telnet":
+                    break
+
+            # Asserted in stages, so a failure says which link broke rather than only that the
+            # end state is wrong. The first run of this test failed at the last line with no way
+            # to tell whether the timer never fired, the probe never connected, or the reload
+            # ran and chose HTTP again.
+            assert fake.telnet_connections > before, "the probe never reached the control socket"
             assert entry.runtime_data.coordinator.transport.name == "telnet"
             # The probe must not still be holding what it went looking for.
             assert entry.runtime_data.coordinator.transport.connected

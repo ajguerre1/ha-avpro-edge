@@ -96,6 +96,7 @@ W5 is the settle-window measurement (25–404 ms, window 1.0 s) meeting reality.
 | **T-L2** | `switch.*_output_1_stream` off, then on | **Blanks a real display.** Do it on a screen you can see |
 | **T-L6** | `select.*_front_panel_backlight` → each of the four | **The labels are inferred.** The count is measured (T0–T3 accepted, T4/T5 refused) but *Always ON / 15s / 30s / 60s* comes from AVPro's own driver listing them in that order. Only someone watching the front panel can confirm `T0` really is always-on |
 | **T-L7** | `button.*_input_N_hot_plug_reset` on an input with a fussy source | **`HOT_PLUG_RESET_HOLD` is the one unmeasured constant here.** 1.0 s is conventional, not observed. If the source does not renegotiate, it is too short |
+| **T-L8** | **Unplug one source**, then read the signal sensors and the matrix's own web page | **Decides whether the signal binary sensor can ever say *Disconnected*.** A blank field currently decodes to the same `None` as a port never read, so `is_on` returns `True` or `None` and never `False`. Cheapest test on this list — pull one HDMI cable and look |
 
 ## Known-unvalidated assumptions
 

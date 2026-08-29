@@ -90,6 +90,34 @@ def test_signal_info_keeps_free_text_and_maps_blank_to_unknown() -> None:
     assert len([k for k in values if k.startswith("signal_")]) == PORTS
 
 
+def test_a_blank_field_is_indistinguishable_from_an_unread_one() -> None:
+    """Pinned because it is a **conflation**, and one with a visible consequence.
+
+    A blank field and a port the device never reported both become ``None``, so the state layer
+    cannot tell "the matrix looked and there is nothing" from "nobody has asked yet". The two
+    bodies below differ -- one reports four ports, the other two -- and decode to the same thing
+    for ports 3 and 4.
+
+    The consequence lands on ``binary_sensor.is_on``, which returns ``None`` for ``None`` and
+    ``bool(text)`` otherwise. A non-empty string is always truthy, so **the entity can return
+    True or None and never False**: a CONNECTIVITY binary sensor whose "Disconnected" state is
+    unreachable, while its own docstring offers "is the Apple TV awake" as the automation it
+    exists for.
+
+    Not changed here, deliberately. Preserving the distinction is a one-line change with no blast
+    radius -- media_player already tests truthiness, and the sensor maps blank to None itself --
+    but whether a real AC-MX44-AUHD returns blank for an unplugged input or for a port it does
+    not measure is **not established**, and "Disconnected" would be a false claim under the second
+    reading. It is a hardware observation, not a code decision, and it is on the live checklist.
+    Inverting it on a guess is exactly how the fake came to serve a TMDS tab V1.41 does not have.
+    """
+    four_ports_one_blank = _decode(StatusEndpoint.INFO, "INFSta=a&b&&d&").values
+    only_two_reported = _decode(StatusEndpoint.INFO, "INFSta=a&b").values
+
+    assert four_ports_one_blank["signal_3"] is None, "the device said this port has nothing"
+    assert only_two_reported["signal_3"] is None, "the device said nothing about this port"
+
+
 def test_a_short_signal_body_is_padded_not_truncated() -> None:
     values = _decode(StatusEndpoint.INFO, "INFSta=a&b").values
     assert values == {"signal_1": "a", "signal_2": "b", "signal_3": None, "signal_4": None}

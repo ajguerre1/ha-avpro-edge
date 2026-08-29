@@ -122,12 +122,26 @@ rules:
       keyed on the AVPro OUI, which needs the OUI confirmed across more than one unit.
   discovery-update-info: todo
   docs-data-update: done
-  docs-examples: todo
+  docs-examples: done
+    # The Actions section, with a worked call for each. Satisfied by the README rewrite and left
+    # marked todo for a week afterwards -- writing documentation and updating the file that
+    # describes it are separate acts, and only one of them is anybody's habit. Now checked
+    # against README.md in both directions by tests/test_quality_scale.py, so neither a false
+    # `done` nor a stale `todo` survives.
   docs-known-limitations: done
+    # Deliberately not one section. A limitation is useful where it bites: the fixed-address note
+    # sits under "Before you start", the controls the web interface cannot offer sit under the
+    # connection setting, and "Some controls are missing" sits in Troubleshooting.
   docs-supported-devices: done
   docs-supported-functions: done
-  docs-troubleshooting: todo
-  docs-use-cases: todo
+  docs-troubleshooting: done
+    # Seven symptoms, each written as the thing somebody would actually say -- "a display went
+    # black", "changing something appears to do nothing" -- rather than as a fault name they
+    # would have to already know. Plus how to file an issue, and why the diagnostics attachment
+    # is safe to share.
+  docs-use-cases: done
+    # "What people use it for". The one of these three that genuinely was outstanding: the README
+    # had a feature table, which answers "what are the controls" and not "why would I want this".
   dynamic-devices:
     status: exempt
     comment: A fixed matrix. Ports are entities on one device, never devices that come and go.

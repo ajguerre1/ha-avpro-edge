@@ -58,6 +58,11 @@ DEFERRED: dict[str, str] = {
     "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
     "T-L6": "live tier: the LCD backlight timeout is only observable by a person at the matrix",
     "T-L7": "live tier: only a real source can show whether it noticed the hot-plug drop",
+    "T-L8": (
+        "live tier: what the matrix puts in a signal field for an input with nothing plugged "
+        "into it. Only unplugging something answers it, and the answer decides whether a blank "
+        "may be reported as Disconnected"
+    ),
 }
 
 #: Live scenarios that have been run against real hardware, and what was observed.

@@ -102,9 +102,16 @@ async def test_an_unread_port_is_not_reported_as_having_no_signal(hass: HomeAssi
 async def test_a_measured_port_still_reports_a_boolean(
     hass: HomeAssistant, fake, loaded_entry
 ) -> None:
-    """Guards the fix above: returning `None` unconditionally would pass it too."""
+    """Guards the fix above: returning `None` unconditionally would pass it too.
+
+    Port 3 is `None` and that is the fake being faithful -- its default signal list leaves that
+    port blank, and a blank field decodes to `None` rather than to "nothing here". So this row
+    also happens to record the conflation documented in
+    `tests/test_http_decode.py::test_a_blank_field_is_indistinguishable_from_an_unread_one`: in a
+    dump meant to help somebody debug, port 3 reads the same as a port never polled.
+    """
     payload = await async_get_config_entry_diagnostics(hass, loaded_entry)
-    assert payload["matrix"]["signal_present"] == [True, True, True, True]
+    assert payload["matrix"]["signal_present"] == [True, True, None, True]
 
 
 async def test_it_is_json_serialisable(hass: HomeAssistant, fake, loaded_entry) -> None:
