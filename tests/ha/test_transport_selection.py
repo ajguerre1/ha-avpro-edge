@@ -75,6 +75,7 @@ async def test_nothing_connects_to_the_control_socket_under_the_http_setting(
 
 
 async def test_the_telnet_only_entities_are_absent_under_http(hass: HomeAssistant, fake) -> None:
+    """T-D5. An entity that can never read is worse than no entity: it reads unknown forever."""
     entry = await _setup(hass, fake, **{CONF_TRANSPORT: TRANSPORT_HTTP})
     coordinator = entry.runtime_data.coordinator
     for kind in ("stream", "input_power", "key_lock", "lcd_timeout"):

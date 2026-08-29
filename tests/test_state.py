@@ -85,7 +85,7 @@ def test_a_report_never_clears_what_it_does_not_mention() -> None:
 
 
 def test_even_a_census_does_not_clear_another_transports_contribution() -> None:
-    """No single report is authoritative about the whole device.
+    """T-R2. No single report is authoritative about the whole device.
 
     Telnet's GET STA knows nothing of the port names; the HTTP census knows nothing of the output
     stream state. If a census cleared what it omitted, each transport would erase the other's

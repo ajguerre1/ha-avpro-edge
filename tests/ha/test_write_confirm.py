@@ -56,6 +56,7 @@ def _count_changes(hass: HomeAssistant, entity_id: str) -> list[Event]:
 async def test_a_write_produces_exactly_one_state_change(
     hass: HomeAssistant, fake, http_entry
 ) -> None:
+    """T-W1. The optimistic publish, and nothing else."""
     events = _count_changes(hass, ENTITY)
 
     await hass.services.async_call(
@@ -73,7 +74,7 @@ async def test_a_write_produces_exactly_one_state_change(
 async def test_the_confirming_poll_writes_no_further_state(
     hass: HomeAssistant, fake, http_entry
 ) -> None:
-    """The overlay already published the value, so the poll that agrees must be silent."""
+    """T-W2. The overlay already published the value, so the poll that agrees must be silent."""
     coordinator = http_entry.runtime_data.coordinator
 
     await hass.services.async_call(
@@ -93,7 +94,7 @@ async def test_the_confirming_poll_writes_no_further_state(
 
 
 async def test_a_quiet_poll_writes_nothing_at_all(hass: HomeAssistant, fake, http_entry) -> None:
-    """The single largest defence against fanning noise out to fifty panels."""
+    """T-W5. The single largest defence against fanning noise out to fifty panels."""
     coordinator = http_entry.runtime_data.coordinator
     events = _count_changes(hass, ENTITY)
 
@@ -107,7 +108,7 @@ async def test_a_quiet_poll_writes_nothing_at_all(hass: HomeAssistant, fake, htt
 async def test_a_stale_poll_inside_the_window_does_not_revert_the_entity(
     hass: HomeAssistant,
 ) -> None:
-    """The KEEP rule, at the Home Assistant layer.
+    """T-W3. The KEEP rule, at the Home Assistant layer.
 
     With slow-apply the matrix accepts the command but does not show it yet. If the overlay
     cleared on that reading, the entity would visibly flick back to the old source.
@@ -143,7 +144,7 @@ async def test_a_stale_poll_inside_the_window_does_not_revert_the_entity(
 async def test_an_ignored_write_settles_on_device_truth_and_is_never_re_sent(
     hass: HomeAssistant,
 ) -> None:
-    """Two controllers re-asserting at each other is the failure this prevents."""
+    """T-W4. Two controllers re-asserting at each other is the failure this prevents."""
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"never-apply"}) as fake:
@@ -215,3 +216,42 @@ async def test_route_all_uses_one_request_for_every_output(
 
     assert len([r for r in fake.requests if r.startswith("TimSendCmd")]) == 1
     assert fake.state.video_routes == [2, 2, 2, 2]
+
+
+# ---------------------------------------------------------------------------------------------
+# T-N11 -- shutdown drops the overlay
+# ---------------------------------------------------------------------------------------------
+
+
+async def test_shutdown_drops_the_pending_overlay(hass: HomeAssistant) -> None:
+    """T-N11. An optimistic value that outlives its connection is a claim about nothing.
+
+    The overlay only means "commanded, not yet confirmed" -- and confirmation can only arrive over
+    the transport that carried the command. Once that is gone, so is any prospect of the value
+    being either confirmed or corrected, and the expiry watchdog has been cancelled along with it.
+    Keeping it would leave the entity asserting a value nothing will ever check, until something
+    happens to reload the entry.
+
+    Uses ``never-apply`` so the write is guaranteed to still be outstanding at shutdown; against
+    the ordinary fake the confirming read can land first and the overlay would be legitimately
+    empty, which would pass while asserting nothing.
+    """
+    from fake_avpro import FakeMatrix
+
+    async with FakeMatrix(faults={"never-apply"}) as fake:
+        entry = make_entry(fake.host, telnet_port=fake.telnet_port, **HTTP_ONLY)
+        entry.add_to_hass(hass)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        coordinator = entry.runtime_data.coordinator
+        key = port_key(KEY_VIDEO_ROUTE, 1)
+
+        await coordinator.async_set(key, 3)
+        await hass.async_block_till_done()
+        assert key in coordinator.pending, "nothing was pending; the test proves nothing"
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        assert key not in coordinator.pending

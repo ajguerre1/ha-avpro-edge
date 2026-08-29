@@ -295,8 +295,81 @@ def test_it_declares_that_it_pushes() -> None:
     assert TelnetTransport("127.0.0.1:1").capabilities.pushes is True
 
 
+# ---------------------------------------------------------------------------------------------
+# T-N10 -- a push is never mistaken for a command response (C6)
+# ---------------------------------------------------------------------------------------------
+#
+# Driven through _dispatch directly rather than over a socket, deliberately. The hazard lives
+# entirely in that method's branch, and reproducing it on the wire means winning a race against
+# the 250 ms batching window -- a test that passes or fails on how busy the CI runner is proves
+# nothing either way. Here the interleaving is stated rather than hoped for.
+
+
+def _pending_census(transport: TelnetTransport) -> asyncio.Future[DeviceReport]:
+    """Put the transport in the state ``async_read_all`` holds while awaiting a reply."""
+    future: asyncio.Future[DeviceReport] = asyncio.get_running_loop().create_future()
+    transport._census = future
+    return future
+
+
+async def test_a_push_arriving_during_a_command_does_not_satisfy_the_census() -> None:
+    """T-N10. Replies and pushes share one stream; only a census may answer ``GET STA``.
+
+    If any inbound block could resolve the waiting future, a routine push landing in the gap
+    would return a one-key report as though it were the whole device. ``census_done`` would be
+    set from it, and every entity would be created from that single value -- the rest of the
+    matrix simply absent, with nothing anywhere reporting a fault.
+    """
+    transport = TelnetTransport("127.0.0.1:1")
+    future = _pending_census(transport)
+
+    pushed: list[DeviceReport] = []
+    transport.subscribe(pushed.append)
+
+    transport._dispatch(["OUT1 VS IN4\r\n"])
+
+    assert not future.done(), "a push resolved the pending census"
+    assert [r.values for r in pushed] == [{"video_route_1": 4}]
+    assert pushed[0].complete is False
+
+
+async def test_the_census_still_arrives_after_a_push_has_gone_by() -> None:
+    """T-N10. The push must not consume the reply the caller is still waiting for."""
+    async with FakeMatrix() as fake:
+        transport = TelnetTransport("127.0.0.1:1")
+        future = _pending_census(transport)
+        transport.subscribe(lambda _report: None)
+
+        transport._dispatch(["OUT1 VS IN4\r\n"])
+        transport._dispatch([fake.telnet_status()])
+
+        assert future.done()
+        census = future.result()
+        assert census.complete is True
+        assert len(census.values) > 20, "the census resolved with something smaller than a census"
+
+
+async def test_a_push_batched_into_the_census_block_is_kept_not_dropped() -> None:
+    """T-N10, the other half. Arriving together is the case that actually happens.
+
+    The device appends routing dumps to command responses -- ``GET ADDR`` came back with four
+    route lines attached -- so a block genuinely can carry both. Merging is the right answer:
+    every line is truth about the device. What must not happen is the push being discarded
+    because the block was classified as a census.
+    """
+    async with FakeMatrix() as fake:
+        transport = TelnetTransport("127.0.0.1:1")
+        future = _pending_census(transport)
+
+        transport._dispatch([fake.telnet_status(), "KEY LOCK ON\r\n"])
+
+        census = future.result()
+        assert census.complete is True
+        assert census.values["key_lock"] is True, "the trailing push was dropped"
+
+
 def test_backoff_climbs_and_is_jittered_per_client() -> None:
-    """Never random.seed(): two matrices must not reconnect in lockstep."""
+    """T-N12. Never random.seed(): two matrices must not reconnect in lockstep."""
     a = TelnetTransport("127.0.0.1:1", seed="a")
     b = TelnetTransport("127.0.0.1:1", seed="b")
     first = [a.backoff_delay() for _ in range(4)]
