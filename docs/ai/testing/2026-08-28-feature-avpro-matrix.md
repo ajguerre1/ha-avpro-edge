@@ -102,12 +102,12 @@ reason it cannot have one.
 
 ### T-E — Features telnet unlocks (M-E)
 
-- [ ] T-E1 `switch.output_N_stream` reads back after a restart — it is real state, not assumed
-- [ ] T-E2 `switch.input_N_power` reflects `IN1 TMDS ON`
-- [ ] T-E3 Key lock and LCD timeout read and write
-- [ ] T-E4 `media_player` advertises `TURN_ON`/`TURN_OFF` on telnet and **not** on HTTP
+- [x] T-E1 `switch.output_N_stream` reads back after a restart — it is real state, not assumed
+- [x] T-E2 `switch.input_N_power` reflects `IN1 TMDS ON`
+- [x] T-E3 Key lock and LCD timeout read and write
+- [x] T-E4 `media_player` advertises `TURN_ON`/`TURN_OFF` on telnet and **not** on HTTP
 - [x] T-E5 Signal is supplemented over HTTP when telnet is active — telnet cannot read it at all
-- [ ] T-E6 `manifest.json` declares `local_push`
+- [x] T-E6 `manifest.json` declares `local_push`
 
 ### T-W — Write semantics (already passing; must stay passing)
 
@@ -126,6 +126,9 @@ reason it cannot have one.
 - [ ] T-L3 Change a route from the matrix's web page; confirm Home Assistant reflects it in < 2 s (S2)
 - [ ] T-L4 Pull power to the matrix; confirm entities go unavailable and recover with no restart
 - [ ] T-L5 Install from HACS as a custom repository, end to end (S3)
+- [ ] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON* — the option
+      count is measured, but the labels come from the Control4 driver's list order and cannot be
+      observed over either wire
 
 ## Test Data
 

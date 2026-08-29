@@ -25,6 +25,7 @@ from .models import (
     AUDIO_DELAY_BY_CODE,
     BIND_MODE_BY_CODE,
     IMAGE_ENHANCEMENT_BY_CODE,
+    LCD_TIMEOUT_BY_CODE,
     SCALER_MODE_BY_CODE,
 )
 from .report import DeviceReport
@@ -111,7 +112,10 @@ _PATTERNS: Final[tuple[tuple[re.Pattern[str], Any], ...]] = (
     (re.compile(r"^OUT(\d+) STREAM (ON|OFF)$"), lambda m: _out(m, KEY_STREAM, _ON_OFF[m[2]])),
     (re.compile(r"^IN(\d+) TMDS (ON|OFF)$"), lambda m: _out(m, KEY_INPUT_POWER, _ON_OFF[m[2]])),
     (re.compile(r"^KEY LOCK (ON|OFF)$"), lambda m: (KEY_KEY_LOCK, _ON_OFF[m[1]])),
-    (re.compile(r"^LCD ON T(\d+)$"), lambda m: (KEY_LCD_TIMEOUT, int(m[1]))),
+    (
+        re.compile(r"^LCD ON T(\d+)$"),
+        lambda m: (KEY_LCD_TIMEOUT, LCD_TIMEOUT_BY_CODE.get(int(m[1]))),
+    ),
     # --- input EDID, as a numeric index ---------------------------------------------------
     (re.compile(r"^IN(\d+) EDID (\d+)$"), lambda m: _out(m, KEY_EDID, _edid_option(int(m[2])))),
     # --- identity --------------------------------------------------------------------------

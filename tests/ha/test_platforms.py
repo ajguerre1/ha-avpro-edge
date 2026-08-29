@@ -28,19 +28,26 @@ async def test_the_expected_entities_are_registered(hass: HomeAssistant, loaded_
         by_platform[entity.domain] = by_platform.get(entity.domain, 0) + 1
 
     assert by_platform["media_player"] == 4
-    assert by_platform["switch"] == 8  # extracted audio + test pattern, per output
+    # Per output: extracted audio, test pattern, stream. Per input: TMDS. Plus one key lock for
+    # the device. The last three arrived with telnet, which is the only wire that can read them.
+    assert by_platform["switch"] == 4 + 4 + 4 + 4 + 1
     assert by_platform["sensor"] == 4
     assert by_platform["binary_sensor"] == 4
-    # 4 outputs x 4 settings, 4 inputs x EDID, plus the device-level bind mode.
-    assert by_platform["select"] == 21
+    # 4 outputs x 4 settings, 4 inputs x EDID, plus device-level bind mode and LCD timeout.
+    assert by_platform["select"] == 16 + 4 + 2
 
 
 async def test_only_the_everyday_entities_are_enabled(hass: HomeAssistant, loaded_entry) -> None:
-    """Install-time settings stay disabled: every enabled entity fans state out to the panels."""
+    """Install-time settings stay disabled: every enabled entity fans state out to the panels.
+
+    The stream switches are the exception and are deliberate. Blanking a display is something
+    somebody does on a Tuesday evening, not once at commissioning, so it is the one control here
+    that earns its place on by default.
+    """
     entries = _registry_entries(hass, loaded_entry.entry_id)
     enabled = [e for e in entries if not e.disabled_by]
-    assert {e.domain for e in enabled} == {"media_player", "sensor"}
-    assert len(enabled) == 8
+    assert {e.domain for e in enabled} == {"media_player", "sensor", "switch"}
+    assert len(enabled) == 4 + 4 + 4
 
 
 async def test_unique_ids_are_scoped_to_the_entry(hass: HomeAssistant, loaded_entry) -> None:
@@ -80,12 +87,29 @@ async def test_the_output_name_is_an_attribute_not_the_entity_name(
     assert "OutA" not in ENTITY
 
 
-async def test_it_declares_only_source_selection(hass: HomeAssistant, loaded_entry) -> None:
-    """No volume, no mute, no on/off: none of them are real on this model."""
+async def test_it_declares_no_volume_or_mute_on_any_transport(
+    hass: HomeAssistant, loaded_entry
+) -> None:
+    """Neither is real on this model, whatever the wire.
+
+    This used to assert ``== SELECT_SOURCE`` exactly, which stopped being true when on/off became
+    available on telnet -- see T-E4. Volume and mute are the durable claim: the model has no volume
+    at all, and the extracted-audio enable is a separate de-embedded feed that does not change what
+    the room hears, so wiring ``volume_mute`` to it would misreport the hardware.
+    """
     from homeassistant.components.media_player import MediaPlayerEntityFeature
 
     features = hass.states.get(ENTITY).attributes["supported_features"]
-    assert features == MediaPlayerEntityFeature.SELECT_SOURCE
+    for absent in (
+        MediaPlayerEntityFeature.VOLUME_SET,
+        MediaPlayerEntityFeature.VOLUME_STEP,
+        MediaPlayerEntityFeature.VOLUME_MUTE,
+        MediaPlayerEntityFeature.PLAY,
+        MediaPlayerEntityFeature.PAUSE,
+        MediaPlayerEntityFeature.STOP,
+    ):
+        assert not features & absent, f"{absent.name} is not real on this hardware"
+    assert features & MediaPlayerEntityFeature.SELECT_SOURCE
 
 
 async def test_a_port_with_no_signal_reports_idle_not_off(

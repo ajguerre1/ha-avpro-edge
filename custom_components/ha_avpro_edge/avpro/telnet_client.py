@@ -34,10 +34,12 @@ from .models import (
     CODE_BY_AUDIO_DELAY,
     CODE_BY_BIND_MODE,
     CODE_BY_IMAGE_ENHANCEMENT,
+    CODE_BY_LCD_TIMEOUT,
     CODE_BY_SCALER_MODE,
     AudioDelay,
     BindMode,
     ImageEnhancement,
+    LcdTimeout,
     ScalerMode,
 )
 from .report import DeviceReport
@@ -338,7 +340,7 @@ class TelnetTransport:
             case "key_lock":
                 return f"SET KEY LOCK {'ON' if value else 'OFF'}"
             case "lcd_timeout":
-                return f"SET LCD ON T{int(value)}"
+                return f"SET LCD ON T{CODE_BY_LCD_TIMEOUT[LcdTimeout(value)]}"
             case "bind_mode":
                 return f"SET EXAMX MODE{CODE_BY_BIND_MODE[BindMode(value)]}"
 

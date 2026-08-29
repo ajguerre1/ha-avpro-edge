@@ -23,6 +23,9 @@
       },
       "edid": {
         "default": "mdi:monitor-eye"
+      },
+      "lcd_timeout": {
+        "default": "mdi:tablet-dashboard"
       }
     },
     "switch": {
@@ -34,6 +37,24 @@
       },
       "test_pattern": {
         "default": "mdi:test-tube"
+      },
+      "stream": {
+        "default": "mdi:television-play",
+        "state": {
+          "off": "mdi:television-off"
+        }
+      },
+      "input_power": {
+        "default": "mdi:hdmi-port",
+        "state": {
+          "off": "mdi:power-plug-off"
+        }
+      },
+      "key_lock": {
+        "default": "mdi:lock",
+        "state": {
+          "off": "mdi:lock-open-variant"
+        }
       }
     },
     "sensor": {

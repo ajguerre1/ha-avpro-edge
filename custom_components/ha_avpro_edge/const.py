@@ -120,8 +120,16 @@ KEY_AUDIO_DELAY: Final = "audio_delay"
 KEY_SCALER: Final = "scaler"
 KEY_IMAGE_ENHANCEMENT: Final = "image_enhancement"
 KEY_TEST_PATTERN: Final = "test_pattern"
-KEY_TMDS_STREAM: Final = "tmds_stream"
 KEY_SIGNAL: Final = "signal"
+
+#: The four telnet reads the CGI interface has no status endpoint for. ``KEY_TMDS_STREAM`` used to
+#: sit here as a placeholder for the first of them and was never referenced by anything; these are
+#: the names the wire grammar actually produces.
+KEY_STREAM: Final = "stream"
+KEY_INPUT_POWER: Final = "input_power"
+KEY_KEY_LOCK: Final = "key_lock"
+KEY_LCD_TIMEOUT: Final = "lcd_timeout"
+
 KEY_EDID: Final = "edid"
 KEY_BIND_MODE: Final = "bind_mode"
 

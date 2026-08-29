@@ -61,11 +61,30 @@ def test_an_unknown_fault_is_rejected_loudly() -> None:
         FakeMatrix(faults={"not-a-real-fault"})
 
 
-async def test_the_fake_serves_every_status_endpoint_by_default() -> None:
+async def test_the_default_fake_serves_exactly_what_the_real_firmware_does() -> None:
+    """The default is a model of **this** matrix, not of an idealised one.
+
+    This used to assert that every endpoint is served, which was a comfortable thing to believe
+    and not true of the hardware: V1.41 has no TMDS tab. The fake served it anyway, so every test
+    that did not opt into a fault was exercising a device that does not exist.
+
+    Named rather than skipped, so a firmware that gains the tab shows up as a failure here and
+    gets a deliberate decision rather than a silent one.
+    """
+    absent = {StatusEndpoint.TMDS}
+
     async with FakeMatrix() as fake:
         for endpoint in StatusEndpoint:
-            body = await _get(fake, endpoint.value)
-            assert parse_status(endpoint, body).ok, endpoint.value
+            parsed = parse_status(endpoint, await _get(fake, endpoint.value))
+            if endpoint in absent:
+                assert not parsed.ok, f"{endpoint.value} is absent on V1.41 but the fake served it"
+            else:
+                assert parsed.ok, endpoint.value
+
+
+async def test_the_absent_tab_can_be_turned_on_for_a_firmware_that_has_it() -> None:
+    async with FakeMatrix(faults={"tmds-present"}) as fake:
+        assert parse_status(StatusEndpoint.TMDS, await _get(fake, StatusEndpoint.TMDS.value)).ok
 
 
 async def test_an_unknown_path_gets_the_firmwares_200_and_html() -> None:

@@ -11,9 +11,14 @@ mute worth the name: the extracted-audio enable is a separate de-embedded feed t
 change what the room hears, so wiring ``volume_mute`` to it would misreport the hardware. It ships
 as a plainly named switch instead.
 
-``turn_on``/``turn_off`` are absent for the same reason. The TMDS control that would back them has
-no status endpoint on the firmware this was built against, so ``state`` would be a remembered
-guess -- wrong after a restart, and wrong the moment anything else touched the matrix.
+``turn_on``/``turn_off`` are **declared at runtime, from what the live transport can read**, not
+hardcoded. They are backed by the output's stream control, which the CGI interface can write and
+cannot read back: on that wire ``state`` would be a remembered guess, wrong after a restart and
+wrong the moment anything else touched the matrix. Telnet reports ``OUT1 STREAM ON`` directly, so
+there they are real.
+
+Declaring a feature the transport cannot honour is worse than not having it. A greyed-out button
+tells the user something true; a button that lies about what the matrix did does not.
 """
 
 from __future__ import annotations
@@ -30,7 +35,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AvProConfigEntry
-from .const import KEY_VIDEO_ROUTE, port_key
+from .const import KEY_STREAM, KEY_VIDEO_ROUTE, port_key
 from .coordinator import AvProCoordinator
 from .entity import AvProEntity
 
@@ -54,7 +59,6 @@ class AvProOutput(AvProEntity, MediaPlayerEntity):
     """A single matrix output, presented as a source selector."""
 
     _attr_device_class = MediaPlayerDeviceClass.RECEIVER
-    _attr_supported_features = MediaPlayerEntityFeature.SELECT_SOURCE
     _attr_translation_key = "output"
 
     def __init__(self, coordinator: AvProCoordinator, output: int) -> None:
@@ -63,6 +67,15 @@ class AvProOutput(AvProEntity, MediaPlayerEntity):
         # Named by index, never by the device's own port name: those are room names, and using
         # one here would bake site data into the entity id permanently.
         self._attr_translation_placeholders = {"index": str(output)}
+
+        # Fixed at construction rather than computed per access: supported_features is read
+        # constantly by the frontend, and the answer cannot change without a reload, since the
+        # transport is chosen at setup.
+        features = MediaPlayerEntityFeature.SELECT_SOURCE
+        if coordinator.supports(KEY_STREAM):
+            features |= MediaPlayerEntityFeature.TURN_ON | MediaPlayerEntityFeature.TURN_OFF
+        self._attr_supported_features = features
+        self._stream_key = port_key(KEY_STREAM, output)
 
     # -- naming --------------------------------------------------------------------------
 
@@ -91,17 +104,36 @@ class AvProOutput(AvProEntity, MediaPlayerEntity):
 
     @property
     def state(self) -> MediaPlayerState:
-        """``ON`` when the routed input is carrying a signal, otherwise ``IDLE``.
+        """``OFF`` when the output's stream is off, ``ON`` when it carries a signal, else ``IDLE``.
 
-        ``IDLE`` rather than ``OFF``: nothing has been turned off. The output is routed and
-        working; the source at the other end is simply asleep or unplugged. Reporting ``OFF``
-        would imply this integration could turn it back on, which it cannot.
+        The ``OFF`` branch exists only where stream is readable. It means something specific and
+        actionable: this integration turned the output off and can turn it back on. Everywhere
+        else the distinction is between ``ON`` and ``IDLE``.
+
+        ``IDLE`` rather than ``OFF`` for a routed output with no signal: nothing has been turned
+        off. The output is working and the source at the other end is asleep or unplugged.
+        Reporting ``OFF`` there would imply this integration could wake it, which it cannot.
         """
+        if self.coordinator.optimistic(self._stream_key) is False:
+            return MediaPlayerState.OFF
+
         signals = self.coordinator.matrix.signals
         routed = self.coordinator.optimistic(self._key)
         if routed and 1 <= routed <= len(signals) and signals[routed - 1]:
             return MediaPlayerState.ON
         return MediaPlayerState.IDLE
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Re-enable this output's HDMI stream."""
+        await self.coordinator.async_set(self._stream_key, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Blank the display on this output by stopping its stream.
+
+        Not a projector-style power command -- the matrix has no way to power anything down. It
+        stops driving the output, which is what makes the screen go dark.
+        """
+        await self.coordinator.async_set(self._stream_key, False)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
