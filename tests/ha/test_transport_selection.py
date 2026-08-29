@@ -220,7 +220,7 @@ async def test_a_polling_transport_uses_the_chosen_profile(hass: HomeAssistant, 
 
 async def test_an_out_of_band_change_arrives_by_push(hass: HomeAssistant, fake) -> None:
     """No poll involved: the device volunteers it, and the entity follows."""
-    await _setup(hass, fake)
+    entry = await _setup(hass, fake)
     entity = "media_player.ac_mx44_auhd_output_1"
     assert hass.states.get(entity).attributes["source"] == "SrcA"
 
