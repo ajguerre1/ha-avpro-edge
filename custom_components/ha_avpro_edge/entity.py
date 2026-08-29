@@ -56,7 +56,9 @@ class AvProEntity(CoordinatorEntity[AvProCoordinator]):
             model=state.model,
             sw_version=state.firmware,
             name=entry.title,
-            configuration_url=f"http://{coordinator.client.host}",
+            # The device's own web page. Always HTTP, even when the active transport is telnet --
+            # this is a link for a human, not a control channel.
+            configuration_url=f"http://{coordinator.transport.host}",
         )
 
     @property

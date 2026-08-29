@@ -2,290 +2,186 @@
 
 Pure. No I/O, no Home Assistant imports, no clock.
 
-The state is rebuilt by *folding* one parsed status body at a time onto the previous state, each
-fold returning a new frozen instance. Two consequences follow, and both are the point:
+State is built by applying :class:`DeviceReport` objects, which are transport-neutral. That is the
+whole reason this module has one ``apply`` where it previously had seven ``fold_*`` functions:
+those existed only because the HTTP endpoints have different shapes, and once a transport
+normalises to a report, the shape is the transport's problem rather than the state's.
 
-* **Structural equality works.** ``new == old`` is true whenever nothing actually moved, which is
-  what lets the coordinator run with ``always_update=False`` and notify no listeners at all on a
-  quiet tick. On an installation driving fifty wall panels that is the difference between a
-  silent integration and a permanently chattering one.
-* **A partial update cannot corrupt the whole.** Only the fields an endpoint owns are replaced.
-  A failed or absent endpoint leaves its fields exactly as they were, so a cold endpoint that
-  vanishes on some firmware does not blank the entities built from it.
+Two properties carry the design.
+
+**Structural equality.** ``new == old`` is true whenever nothing actually moved, which lets the
+coordinator run with ``always_update=False`` and notify no listeners at all on a quiet cycle. On
+an installation driving fifty wall panels that is the difference between a silent integration and
+a permanently chattering one.
+
+**Applying never clears.** A key a report does not mention keeps its previous value, always. That
+is deliberate and it is why ``complete`` is not used for clearing: no single report is ever
+authoritative about the whole device. Telnet's ``GET STA`` knows nothing of the port names; the
+HTTP census knows nothing of the output stream state. A rule like "a complete report clears what
+it omits" would have each transport erase the other's contribution on every cycle.
+
+``complete`` therefore means one thing only: enough has been read to create entities from. The
+coordinator uses it to gate setup, not to decide what to forget.
 
 Absence is modelled explicitly. ``None`` means "this firmware did not tell us", never "off" and
-never "input 0". Entities render that as unknown rather than inventing a default -- reporting a
-plausible wrong value is worse than reporting nothing, because it is indistinguishable from the
-truth.
+never "input 0". Entities render that as unknown rather than inventing a default -- a plausible
+wrong value is worse than nothing, because it is indistinguishable from the truth.
 """
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from typing import Final
+from typing import Any, Final
 
-from . import protocol as p
-from .models import (
-    AUDIO_DELAY_BY_CODE,
-    BIND_MODE_BY_CODE,
-    IMAGE_ENHANCEMENT_BY_CODE,
-    SCALER_MODE_BY_CODE,
-    AudioDelay,
-    BindMode,
-    ImageEnhancement,
-    ScalerMode,
-    decode_edid,
-)
+from .report import DeviceReport
 
-#: Ports on the model this was developed against. Only a fallback: the real count is derived
-#: from however many routes the video status actually reports, so other members of the family
-#: (MX42, MX88) size themselves correctly.
+#: Ports on the model this was developed against. Only a fallback: the real count is derived from
+#: however many routes the device actually reports, so other members of the family size correctly.
 DEFAULT_PORT_COUNT: Final = 4
 
-#: Number of leading fields in the web status before the port names begin (model, firmware).
-_WEB_HEADER_FIELDS: Final = 2
+#: ``video_route_2`` -> ``("video_route", 2)``. Device-level keys have no suffix.
+_INDEXED: Final = re.compile(r"^(?P<kind>[a-z_]+?)_(?P<index>\d+)$")
+
+# Device-level keys, kept as named properties because they are used everywhere.
+KEY_MODEL: Final = "model"
+KEY_FIRMWARE: Final = "firmware"
+KEY_MAC: Final = "mac"
+KEY_BIND_MODE: Final = "bind_mode"
+
+# Indexed key kinds with a named accessor.
+KIND_OUTPUT_NAME: Final = "output_name"
+KIND_INPUT_NAME: Final = "input_name"
+KIND_VIDEO_ROUTE: Final = "video_route"
+KIND_SIGNAL: Final = "signal"
 
 
-def _sized(values: dict[int, object], count: int) -> tuple:
-    """Turn a sparse ``{1-based index: value}`` map into a dense tuple of length ``count``."""
-    return tuple(values.get(i + 1) for i in range(count))
+def split_key(key: str) -> tuple[str, int | None]:
+    """``("video_route", 2)`` for an indexed key, ``(key, None)`` for a device-level one."""
+    if match := _INDEXED.match(key):
+        return match["kind"], int(match["index"])
+    return key, None
 
 
 @dataclass(frozen=True, slots=True)
 class MatrixState:
-    """Everything known about the matrix. Frozen, hashable by value, cheap to compare."""
+    """Everything known about the matrix, keyed by canonical state key.
 
-    # --- identity -----------------------------------------------------------------------
-    model: str | None = None
-    firmware: str | None = None
-    mac: str | None = None
+    ``values`` is treated as immutable: :func:`apply` always builds a new mapping rather than
+    mutating one. It is a plain dict rather than a ``MappingProxyType`` so that equality stays a
+    cheap dict comparison, which is what the change-gating depends on.
+    """
 
-    # --- port naming --------------------------------------------------------------------
-    #: The owner's names for each port. Site data: never logged, never in a unique_id, never
-    #: in an entity name. Surfaced only as ``source_list`` labels and a state attribute.
-    output_names: tuple[str | None, ...] = ()
-    input_names: tuple[str | None, ...] = ()
+    values: Mapping[str, Any] = field(default_factory=dict)
 
-    # --- routing ------------------------------------------------------------------------
-    #: 1-based input number feeding each output, indexed by output - 1.
-    video_routes: tuple[int | None, ...] = ()
-    audio_routes: tuple[int | None, ...] = ()
+    #: Key kinds observed at least once. Entities are created from this, so a transport that
+    #: cannot report something simply has no entities for it rather than a row of unknowns.
+    seen: frozenset[str] = field(default_factory=frozenset)
 
-    # --- extracted audio ----------------------------------------------------------------
-    extracted_audio: tuple[bool | None, ...] = ()
-    audio_delays: tuple[AudioDelay | None, ...] = ()
-    bind_mode: BindMode | None = None
+    #: True once enough has been read to create entities from.
+    census_done: bool = False
 
-    # --- per-output video processing ----------------------------------------------------
-    scaler_modes: tuple[ScalerMode | None, ...] = ()
-    image_enhancements: tuple[ImageEnhancement | None, ...] = ()
-    test_patterns: tuple[bool | None, ...] = ()
+    # -- generic access ------------------------------------------------------------------
 
-    # --- signal and EDID ----------------------------------------------------------------
-    #: Free text exactly as the device reports it, e.g. "3840X2160P@60HZ YUV420". Deliberately
-    #: not parsed into an enumeration: any set of values written today is a bug on tomorrow's
-    #: firmware. An empty string means the port reported nothing.
-    signals: tuple[str | None, ...] = ()
-    edid: tuple[str | None, ...] = ()
+    def get(self, key: str, fallback: Any = None) -> Any:
+        """The value for a canonical state key, or ``fallback`` if it was never reported."""
+        return self.values.get(key, fallback)
 
-    #: Which endpoints have been folded in at least once. Entities are created from this, so a
-    #: firmware missing an endpoint simply has no entities for it rather than a row of unknowns.
-    seen: frozenset[p.StatusEndpoint] = field(default_factory=frozenset)
+    def series(self, kind: str, count: int | None = None) -> tuple[Any, ...]:
+        """All values of one indexed kind, as a dense tuple indexed from zero.
+
+        ``series("video_route")`` -> ``(1, 2, 3, 4)``. Missing entries are ``None``.
+        """
+        size = count if count is not None else self.port_count
+        return tuple(self.values.get(f"{kind}_{i}") for i in range(1, size + 1))
+
+    def has(self, kind: str) -> bool:
+        """Whether any value of this kind has ever been reported."""
+        return kind in self.seen
+
+    # -- named accessors, for the things used everywhere ---------------------------------
+
+    @property
+    def model(self) -> str | None:
+        return self.values.get(KEY_MODEL)
+
+    @property
+    def firmware(self) -> str | None:
+        return self.values.get(KEY_FIRMWARE)
+
+    @property
+    def mac(self) -> str | None:
+        return self.values.get(KEY_MAC)
+
+    @property
+    def bind_mode(self) -> Any:
+        return self.values.get(KEY_BIND_MODE)
 
     @property
     def port_count(self) -> int:
-        """How many inputs and outputs this unit has, derived rather than assumed."""
-        return len(self.video_routes) or DEFAULT_PORT_COUNT
+        """How many inputs and outputs this unit has, derived rather than assumed.
+
+        Taken from the highest video-route index reported, so an eight-output unit sizes itself
+        correctly without the model being recognised.
+        """
+        highest = 0
+        for key in self.values:
+            kind, index = split_key(key)
+            if kind == KIND_VIDEO_ROUTE and index is not None:
+                highest = max(highest, index)
+        return highest or DEFAULT_PORT_COUNT
+
+    @property
+    def video_routes(self) -> tuple[int | None, ...]:
+        return self.series(KIND_VIDEO_ROUTE)
+
+    @property
+    def signals(self) -> tuple[str | None, ...]:
+        return self.series(KIND_SIGNAL)
+
+    @property
+    def output_names(self) -> tuple[str | None, ...]:
+        return self.series(KIND_OUTPUT_NAME)
+
+    @property
+    def input_names(self) -> tuple[str | None, ...]:
+        return self.series(KIND_INPUT_NAME)
 
     def output_name(self, output: int) -> str | None:
-        """The owner's name for a 1-based output, if known."""
-        return self._at(self.output_names, output)
+        """The owner's name for a 1-based output, if known. Site data -- never log it."""
+        return self.values.get(f"{KIND_OUTPUT_NAME}_{output}") if output >= 1 else None
 
     def input_name(self, source: int) -> str | None:
-        """The owner's name for a 1-based input, if known."""
-        return self._at(self.input_names, source)
-
-    @staticmethod
-    def _at(values: tuple, index: int):
-        return values[index - 1] if 1 <= index <= len(values) else None
+        """The owner's name for a 1-based input, if known. Site data -- never log it."""
+        return self.values.get(f"{KIND_INPUT_NAME}_{source}") if source >= 1 else None
 
 
-# ---------------------------------------------------------------------------------------------
-# Folds -- one per status endpoint
-# ---------------------------------------------------------------------------------------------
-#
-# Every fold takes the current state and a parsed body and returns a new state. A fold that
-# cannot make sense of the body returns the state unchanged: keeping the last known good value
-# beats replacing it with nothing.
+def apply(state: MatrixState, report: DeviceReport) -> MatrixState:
+    """Fold one report onto the state, returning a new one.
 
+    Never clears: a key the report does not mention keeps whatever it had. See the module
+    docstring for why -- no single report is authoritative about the whole device, so clearing on
+    absence would make each transport erase the other's contribution.
 
-def _unchanged_unless_ok(state: MatrixState, parsed: p.ParsedStatus) -> MatrixState | None:
-    return None if parsed.ok else state
-
-
-def fold_web(state: MatrixState, parsed: p.ParsedStatus, *, port_count: int) -> MatrixState:
-    """Model, firmware and all port names.
-
-    Guarded by arity, because port names are free text and an embedded ``&`` shifts every field
-    after it. A shifted response is rejected outright rather than applied one position out.
+    Returns the *same object* when nothing changed, so the caller's identity check is as cheap as
+    its equality check.
     """
-    expected = _WEB_HEADER_FIELDS + 2 * port_count
-    guarded = p.expect_fields(parsed, expected)
-    if (early := _unchanged_unless_ok(state, guarded)) is not None:
-        return early
-
-    fields = guarded.fields
-    names = fields[_WEB_HEADER_FIELDS:]
-    return replace(
-        state,
-        model=fields[0] or None,
-        firmware=fields[1] or None,
-        output_names=tuple(n or None for n in names[:port_count]),
-        input_names=tuple(n or None for n in names[port_count:]),
-        seen=state.seen | {p.StatusEndpoint.WEB},
-    )
-
-
-def fold_video(state: MatrixState, parsed: p.ParsedStatus) -> MatrixState:
-    """Video routing. This body also establishes how many ports the unit has."""
-    if (early := _unchanged_unless_ok(state, parsed)) is not None:
-        return early
-
-    routes = {
-        output: source
-        for token in parsed.fields
-        if (pair := p.parse_video_route(token)) is not None
-        for output, source in (pair,)
-    }
-    if not routes:
+    if not report.values:
+        # Still enough to complete the census, if that is what this report was.
+        if report.complete and not state.census_done:
+            return replace(state, census_done=True)
         return state
 
-    count = max(len(parsed.fields), max(routes))
-    return replace(
-        state,
-        video_routes=_sized(routes, count),
-        seen=state.seen | {p.StatusEndpoint.VIDEO},
-    )
+    merged = {**state.values, **report.values}
+    census_done = state.census_done or report.complete
 
-
-def fold_audio(state: MatrixState, parsed: p.ParsedStatus, *, port_count: int) -> MatrixState:
-    """Extracted-audio routing, enable flags, delays and the device-level bind mode.
-
-    Tokens are classified by pattern rather than read by position, so the four groups may appear
-    in any order and an unrecognised extra field is ignored instead of shifting the rest.
-    """
-    if (early := _unchanged_unless_ok(state, parsed)) is not None:
-        return early
-
-    routes: dict[int, int] = {}
-    enabled: dict[int, bool] = {}
-    delays: dict[int, AudioDelay] = {}
-    bind: BindMode | None = state.bind_mode
-
-    for token in parsed.fields:
-        if (pair := p.parse_audio_route(token)) is not None:
-            routes[pair[0]] = pair[1]
-        elif (flag := p.parse_extracted_audio(token)) is not None:
-            enabled[flag[0]] = flag[1]
-        elif (delay := p.parse_audio_delay(token)) is not None:
-            # An unknown delay code is dropped rather than mapped to a neighbouring value.
-            if (member := AUDIO_DELAY_BY_CODE.get(delay[1])) is not None:
-                delays[delay[0]] = member
-        elif (code := p.parse_bind_mode(token)) is not None:
-            bind = BIND_MODE_BY_CODE.get(code, bind)
-
-    return replace(
-        state,
-        audio_routes=_sized(routes, port_count),
-        extracted_audio=_sized(enabled, port_count),
-        audio_delays=_sized(delays, port_count),
-        bind_mode=bind,
-        seen=state.seen | {p.StatusEndpoint.AUDIO},
-    )
-
-
-def fold_system(state: MatrixState, parsed: p.ParsedStatus, *, port_count: int) -> MatrixState:
-    """Scaler mode, image enhancement and the built-in test pattern, per output."""
-    if (early := _unchanged_unless_ok(state, parsed)) is not None:
-        return early
-
-    scalers: dict[int, ScalerMode] = {}
-    enhancements: dict[int, ImageEnhancement] = {}
-    patterns: dict[int, bool] = {}
-
-    for token in parsed.fields:
-        if (scaler := p.parse_scaler_mode(token)) is not None:
-            if (mode := SCALER_MODE_BY_CODE.get(scaler[1])) is not None:
-                scalers[scaler[0]] = mode
-        elif (enhancement := p.parse_image_enhancement(token)) is not None:
-            if (level := IMAGE_ENHANCEMENT_BY_CODE.get(enhancement[1])) is not None:
-                enhancements[enhancement[0]] = level
-        elif (pattern := p.parse_test_pattern(token)) is not None:
-            patterns[pattern[0]] = pattern[1]
-
-    return replace(
-        state,
-        scaler_modes=_sized(scalers, port_count),
-        image_enhancements=_sized(enhancements, port_count),
-        test_patterns=_sized(patterns, port_count),
-        seen=state.seen | {p.StatusEndpoint.SYSTEM},
-    )
-
-
-def fold_info(state: MatrixState, parsed: p.ParsedStatus, *, port_count: int) -> MatrixState:
-    """Detected signal description per port.
-
-    Whether these four fields describe inputs or outputs is not established from the CGI
-    interface alone; they are stored positionally and the entities built on them are labelled
-    accordingly.
-    """
-    if (early := _unchanged_unless_ok(state, parsed)) is not None:
-        return early
-
-    values = list(parsed.fields[:port_count])
-    values += [None] * (port_count - len(values))
-    return replace(
-        state,
-        signals=tuple(v if v else None for v in values),
-        seen=state.seen | {p.StatusEndpoint.INFO},
-    )
-
-
-def fold_edid(state: MatrixState, parsed: p.ParsedStatus, *, port_count: int) -> MatrixState:
-    """Per-input EDID selection, decoded from the wire token to an option key.
-
-    Decoded here rather than at the entity so that the state, the pending overlay and the entity
-    all hold the same vocabulary -- which is what keeps confirming a write a plain equality
-    check. An unrecognised token yields ``None`` rather than being carried through raw, so a
-    firmware that invents one shows as unknown instead of as an option nothing can select.
-    """
-    if (early := _unchanged_unless_ok(state, parsed)) is not None:
-        return early
-
-    values = list(parsed.fields[:port_count])
-    values += [None] * (port_count - len(values))
-    return replace(
-        state,
-        edid=tuple(decode_edid(v) if v else None for v in values),
-        seen=state.seen | {p.StatusEndpoint.EDID},
-    )
-
-
-def fold_network(state: MatrixState, parsed: p.ParsedStatus) -> MatrixState:
-    """The unit's MAC address, and nothing else.
-
-    The network body also carries the IP, netmask, gateway and a second copy of every port name.
-    None of that is kept: the MAC is the one field with a use (a stable unique id), and the rest
-    is site data that would only create another way for it to leak.
-    """
-    if (early := _unchanged_unless_ok(state, parsed)) is not None:
-        return early
-    if not parsed.fields:
+    if merged == state.values and census_done == state.census_done:
         return state
 
-    candidate = parsed.fields[0].strip()
-    return replace(
-        state,
-        mac=candidate or None,
-        seen=state.seen | {p.StatusEndpoint.NETWORK},
+    kinds = {split_key(key)[0] for key in report.values}
+    return MatrixState(
+        values=merged,
+        seen=state.seen | kinds,
+        census_done=census_done,
     )

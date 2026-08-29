@@ -76,6 +76,16 @@ pytest tests/ -v          # offline suite, runs on Windows
 ruff check . && ruff format --check .
 ```
 
+Install the pre-push hook, which runs all three before letting a push through:
+
+```bash
+cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+```
+
+`ruff check` and `ruff format --check` are separate checks and the second is easy to forget,
+because it usually passes — until ruff reformats a Python block inside a Markdown file. The hook
+exists so that is caught before the push rather than after it.
+
 `tests/ha/` needs `pytest-homeassistant-custom-component`, which pulls in Home Assistant and
 therefore cannot be imported on Windows (`homeassistant.runner` imports POSIX-only `fcntl`). Those
 tests run in CI. Everything under `custom_components/ha_avpro_edge/avpro/` has no Home Assistant

@@ -29,8 +29,9 @@ from homeassistant.helpers.selector import (
 )
 
 from .avpro.client import AvProClient, AvProConnectionError
+from .avpro.http_decode import decode
 from .avpro.protocol import StatusEndpoint
-from .avpro.state import MatrixState, fold_network, fold_video, fold_web
+from .avpro.state import MatrixState, apply
 from .const import (
     CONF_ALLOW_WRITES,
     CONF_POLLING_PROFILE,
@@ -94,11 +95,12 @@ async def async_validate_host(hass: Any, host: str) -> MatrixState:
     except AvProConnectionError as err:
         raise AvProValidationError("cannot_connect") from err
 
-    state = fold_video(MatrixState(), video)
-    if not state.video_routes:
+    state = apply(MatrixState(), decode(StatusEndpoint.VIDEO, video, port_count=4))
+    if not any(state.video_routes):
         raise AvProValidationError("not_avpro")
 
-    state = fold_web(state, identity, port_count=state.port_count)
+    # Routing established the width, so the name count is now known.
+    state = apply(state, decode(StatusEndpoint.WEB, identity, port_count=state.port_count))
     if state.model is None:
         # The identity body parsed but its arity was wrong, which on this device means a port
         # name contains '&'. Refusing beats guessing which field was split.
@@ -115,7 +117,8 @@ async def async_validate_host(hass: Any, host: str) -> MatrixState:
     # Best-effort: a unit whose network body will not parse is still perfectly usable, it just
     # has to fall back to a host-derived unique id.
     try:
-        state = fold_network(state, await client.async_read(StatusEndpoint.NETWORK))
+        network = await client.async_read(StatusEndpoint.NETWORK)
+        state = apply(state, decode(StatusEndpoint.NETWORK, network, port_count=state.port_count))
     except AvProConnectionError:
         _LOGGER.debug("%s: network status unavailable; falling back to a host-derived id", host)
 

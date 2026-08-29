@@ -83,7 +83,10 @@ async def test_an_absent_endpoint_is_recorded_and_never_re_requested(
         await hass.async_block_till_done()
 
         coordinator = entry.runtime_data.coordinator
-        assert not coordinator.capabilities.endpoint_available(StatusEndpoint.TMDS)
+        # Endpoint-level capability now belongs to the transport, which is the thing that knows
+        # what endpoints are.
+        transport = coordinator.transport
+        assert not transport.device_capabilities.endpoint_available(StatusEndpoint.TMDS)
 
         fake.requests.clear()
         await coordinator.async_refresh()

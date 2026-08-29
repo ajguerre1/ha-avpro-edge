@@ -74,14 +74,23 @@ reason it cannot have one.
 - [ ] T-D5 Under `http`, telnet-only entities are not created
 - [ ] T-D6 A pushing transport does not poll on the 5 s tick, but does run the 60 s safety net
 
-### T-X — The exclusivity guarantee (S8)
+### T-X — Transport discipline
+
+**Telnet is primary. Always speak telnet unless you don't need to.**
 
 - [ ] T-X1 Under the `http` setting, **nothing ever connects to port 23** — asserted by the fake
-      device's tripwire, which counts connections
-- [ ] T-X2 Static scan: no module opens an outbound socket outside the telnet client
+      device's connection counter. The escape hatch (S8) still holds absolutely
+- [ ] T-X2 While telnet is connected, **no HTTP request is issued for anything telnet supports**.
+      Routing, audio, scaler, EDID, stream, key lock and the periodic safety-net read all go over
+      telnet. Asserted by counting HTTP requests on the fake, which must stay at zero
+- [ ] T-X3 A port rename — the one thing telnet cannot do — *does* reach HTTP, even while telnet
+      is connected, and is the only thing that does
+- [ ] T-X4 Static scan: no module opens an outbound socket outside the telnet client
 
-> T-X1 replaces the current blanket "never speak telnet" guard. The requirement was never that
-> telnet is forbidden; it is that the user's instruction is obeyed. The test has to say that.
+> T-X2 is the assertion that encodes the rule. The old guard forbade telnet outright, which was
+> only ever a proxy for "do not take a socket someone else needs". Now that telnet is the primary
+> channel, the failure worth guarding against is the opposite one: hedging by running HTTP
+> alongside a healthy telnet session, which doubles device load and creates two sources of truth.
 
 ### T-E — Features telnet unlocks (M-E)
 

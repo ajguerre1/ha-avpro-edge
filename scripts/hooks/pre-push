@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# Run the checks CI runs, before the push rather than after it.
+#
+# Install:
+#     cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+#
+# Git hooks are not version-controlled, which is why this lives in the tree and is copied into
+# place. Bypass with --no-verify only when you mean it.
+#
+# Why this exists: `ruff check` and `ruff format --check` are two different checks, and treating
+# them as one put a red commit on main twice. The second one is easy to forget because it usually
+# passes -- until ruff reformats a Python block inside a Markdown file, which is exactly what
+# happened.
+#
+# What it deliberately cannot do: run tests/ha/. Home Assistant cannot be imported on Windows
+# (homeassistant.runner needs POSIX fcntl), so that suite is CI-only and no local hook can cover
+# it. This closes the lint and offline-test gap, not the whole gap.
+
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if [ -x .venv/Scripts/ruff.exe ]; then
+    RUFF=.venv/Scripts/ruff.exe
+    PY=.venv/Scripts/python.exe
+elif [ -x .venv/bin/ruff ]; then
+    RUFF=.venv/bin/ruff
+    PY=.venv/bin/python
+else
+    echo "pre-push: no .venv found -- skipping local checks, CI remains the gate."
+    echo "pre-push: create one with 'python -m venv .venv && .venv/bin/pip install -r requirements-test.txt'"
+    exit 0
+fi
+
+fail() {
+    echo ""
+    echo "pre-push: $1"
+    echo "pre-push: push aborted. Fix it, or use --no-verify if you genuinely mean to push this."
+    exit 1
+}
+
+echo "pre-push: ruff check"
+"$RUFF" check . || fail "lint failed"
+
+# The one that has bitten twice. Separate from `check`, and not implied by it.
+echo "pre-push: ruff format --check"
+"$RUFF" format --check . >/dev/null || fail "formatting differs -- run 'ruff format .'"
+
+echo "pre-push: pytest (offline suite)"
+"$PY" -m pytest tests/ -q --no-header >/dev/null || fail "offline tests failed"
+
+echo "pre-push: ok"
