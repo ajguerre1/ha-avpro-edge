@@ -108,9 +108,10 @@ Verified rather than assumed: on a 2026.8 instance, `GET /api/brands/integration
 returns the integration's committed `brand/icon.png` byte for byte, confirmed by SHA-256 against
 two other installed custom integrations.
 
-Supported filenames are `icon.png`, `logo.png`, their `@2x` variants, and a `dark_` prefixed
-version of each for dark themes. This repository ships the four non-`dark_` files; the artwork is
-white-on-black, which reads on either theme, so a separate dark variant would be the same image.
+All eight supported filenames are shipped: `icon.png`, `logo.png`, their `@2x` variants, and a
+`dark_` prefixed version of each. AVPro publish the wordmark twice, black-on-white and
+white-on-black, so each theme gets the artwork drawn for it rather than one image compromising
+across both. `scripts/make_brand_icons.py` generates all eight from the two sources in `assets/`.
 
 ## Trademarks
 
