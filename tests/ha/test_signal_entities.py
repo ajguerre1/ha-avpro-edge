@@ -144,6 +144,86 @@ async def test_a_port_the_matrix_does_not_have_says_nothing(
 
 
 # ---------------------------------------------------------------------------------------------
+# The change gate, which is the thing that was actually broken
+# ---------------------------------------------------------------------------------------------
+
+
+async def test_the_entity_follows_the_matrix_rather_than_freezing(
+    hass: HomeAssistant, fake, loaded_entry
+) -> None:
+    """It did not, for the whole life of the entity.
+
+    ``AvProEntity`` writes state only when ``_state_snapshot()`` changes, and the base
+    implementation reads ``coordinator.optimistic(self._key)``. This entity's key is
+    ``signal_present_N`` -- chosen to be distinct from the sensor's so the two have distinct
+    unique ids, and a key no transport reports. The gate therefore compared ``None`` to ``None``
+    every time and returned early every time.
+
+    The entity was frozen at whatever it read when the platform was set up. Unplug a source and
+    it kept saying *Connected* until Home Assistant restarted, which is the exact opposite of
+    what a connectivity sensor is for.
+
+    Nothing caught it because a change gate that never fires is indistinguishable from a value
+    that never changes -- and until this file existed, nothing ever asked this entity to change.
+    """
+    await _enable_binary_sensors(hass, loaded_entry)
+    coordinator = loaded_entry.runtime_data.coordinator
+    assert hass.states.get(BINARY).state == STATE_ON
+
+    fake.state.signals = ["", "", "", ""]
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(BINARY).state != STATE_ON, "the entity ignored the matrix"
+
+    fake.state.signals = ["1920X1080P@60HZ"] * 4
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(BINARY).state == STATE_ON, "and it could not come back"
+
+
+def test_an_entity_whose_key_is_not_a_state_key_must_override_the_gate() -> None:
+    """The structural version, so the next one is caught by construction.
+
+    ``_key`` does two jobs -- unique id, and the state key the change gate watches. They agree for
+    every entity that keys off something the device reports, and diverge silently for one that
+    does not. Divergence is legitimate; leaving the gate on the base implementation afterwards is
+    not.
+    """
+    from custom_components.ha_avpro_edge.binary_sensor import AvProSignalPresent
+    from custom_components.ha_avpro_edge.entity import AvProEntity
+
+    assert AvProSignalPresent._state_snapshot is not AvProEntity._state_snapshot
+
+
+def test_every_other_entity_keys_off_something_the_device_reports(
+    hass: HomeAssistant, fake, loaded_entry
+) -> None:
+    """The other half: nothing else is quietly keyed off a name that does not exist.
+
+    Read from the registry rather than from the source, so an entity added later is included
+    without anybody remembering to list it here. ``button`` is exempt for a real reason -- it has
+    no state, so there is nothing for a gate to suppress.
+    """
+    from custom_components.ha_avpro_edge.avpro.http_decode import HTTP_READABLE
+    from custom_components.ha_avpro_edge.avpro.state import split_key
+    from custom_components.ha_avpro_edge.avpro.telnet_client import TELNET_READABLE
+
+    real_kinds = HTTP_READABLE | TELNET_READABLE
+    gated_by_own_rendering = {"binary_sensor"}  # asserted above
+    stateless = {"button"}
+
+    offenders = []
+    for entity in er.async_entries_for_config_entry(er.async_get(hass), loaded_entry.entry_id):
+        if entity.domain in gated_by_own_rendering | stateless:
+            continue
+        key = entity.unique_id.removeprefix(f"{loaded_entry.entry_id}_")
+        if split_key(key)[0] not in real_kinds:
+            offenders.append(entity.entity_id)
+
+    assert not offenders, f"keyed off something no transport reports, so frozen: {offenders}"
+
+
+# ---------------------------------------------------------------------------------------------
 # The capability gate
 # ---------------------------------------------------------------------------------------------
 

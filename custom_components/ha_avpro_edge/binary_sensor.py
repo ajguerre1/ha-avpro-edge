@@ -76,3 +76,20 @@ class AvProSignalPresent(AvProEntity, BinarySensorEntity):
             return None
         detected = signals[self._port - 1]
         return None if detected is None else bool(detected)
+
+    def _state_snapshot(self) -> bool | None:
+        """What this entity renders -- **not** what its key says.
+
+        The base implementation gates on ``coordinator.optimistic(self._key)``, and this entity's
+        key is ``signal_present_N``, which no transport reports and no state ever contains. So the
+        gate compared ``None`` to ``None`` on every single update and returned early every time:
+        the entity was frozen at whatever it read when the platform was set up, for the life of
+        the entry. Unplug a source and it would keep saying *Connected* until Home Assistant
+        restarted.
+
+        The cause is one field doing two jobs. ``_key`` is both the unique id and the state key to
+        watch, and the comment above chose a distinct key to get a distinct unique id -- correct
+        for the first job, and silently wrong for the second. Nothing complained, because a change
+        gate that never fires looks exactly like a value that never changes.
+        """
+        return self.is_on

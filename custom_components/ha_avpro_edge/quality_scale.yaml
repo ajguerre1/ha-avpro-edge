@@ -90,16 +90,21 @@ rules:
     comment: >-
       The device has no authentication of any kind -- no username, password, token or TLS.
       There is nothing to re-authenticate.
-  test-coverage: todo
-    # **92%** on the 2026-08-29 run (1784 statements, 134 uncovered), against a 95% bar. Measured
-    # rather than guessed at: this previously said the suite "has not been measured", which was
-    # true and unactionable, because nothing in the repository could measure it. pytest-cov now
-    # runs in CI and reports without enforcing.
+  test-coverage: done
+    # Enforced by `--cov-fail-under=95` in CI, deliberately instead of a figure written here.
     #
-    # The gap is concentrated rather than spread: avpro/http_transport.py at 76% (its command
-    # mapping is now reached only on the fallback path), coordinator.py at 89%, config_flow.py at
-    # 86%, and transport_select.py at 82% -- almost all of the last being the telnet retry probe,
-    # which is new. Roughly 80 statements separate this from Silver.
+    # Three successive versions of this comment carried a measured number, and every one of them
+    # rotted: the last claimed 92% against 134 uncovered statements and said "roughly 80 separate
+    # this from Silver", when the arithmetic gave 45 and the true figure had already moved. A
+    # percentage in a comment is a claim nothing checks, which is the defect this whole file kept
+    # having. The threshold is the direct mechanism; the build fails or the rule is met.
+    #
+    # Closing the gap was worth more than the number. The uncovered code was concentrated in
+    # paths that only run when something has already gone wrong -- the HTTP command mapping,
+    # reached only after a fallback, and the telnet recovery watcher, which had never executed at
+    # all. Covering them turned up three real defects: bool(None) surviving in the diagnostics
+    # dump, a change gate that had frozen the signal binary sensor for the life of every entry,
+    # and a blank signal field that cannot be told from an unread one (T-L8).
 
   # ---- Gold --------------------------------------------------------------------------------
   devices: done
