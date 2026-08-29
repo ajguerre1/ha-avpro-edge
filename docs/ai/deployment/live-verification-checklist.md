@@ -31,6 +31,7 @@ something a green CI run cannot tell us.
 | I2 | The integration loads after restart | No error in the log | Nothing has ever imported this under a real HA |
 | I3 | Config flow accepts the host | Title reads `AC-MX44-AUHD` | Real identity body, real firmware string |
 | I4 | Device page shows model and firmware | `AC-MX44-AUHD`, `V1.41` | — |
+| I5 | The AVPro Edge icon appears in HACS and on the integration card | The AV mark, not a placeholder | Served from `brand/` via the local proxy; the CDN has no entry for this domain and does not need one |
 
 ## Reads — do these before writing anything
 

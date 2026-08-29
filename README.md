@@ -94,6 +94,24 @@ imports and runs anywhere.
 `tools/fake_avpro.py` is a fake matrix that speaks the real CGI protocol with fault injection, so
 the client can be developed and tested without touching hardware.
 
+## Brand images
+
+The icon and logo live in `custom_components/ha_avpro_edge/brand/` and that is all that is needed.
+
+**No submission to `home-assistant/brands` is required, and one would be refused.** Since Home
+Assistant 2026.3, custom integrations ship their own brand images: the frontend fetches them
+through `/api/brands/integration/{domain}/{image}`, and a local `brand/` directory takes priority
+over the brands CDN. The brands repository's own pull request template now says outright that
+"pull requests for adding new custom components will no longer be accepted".
+
+Verified rather than assumed: on a 2026.8 instance, `GET /api/brands/integration/{domain}/icon.png`
+returns the integration's committed `brand/icon.png` byte for byte, confirmed by SHA-256 against
+two other installed custom integrations.
+
+Supported filenames are `icon.png`, `logo.png`, their `@2x` variants, and a `dark_` prefixed
+version of each for dark themes. This repository ships the four non-`dark_` files; the artwork is
+white-on-black, which reads on either theme, so a separate dark variant would be the same image.
+
 ## Trademarks
 
 **AVPro Edge** and the AVPro Edge logo are trademarks of their owner. This project is an
