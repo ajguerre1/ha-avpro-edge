@@ -16,7 +16,9 @@ from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .avpro.client import AvProClient
+from .avpro.client import AvProClient, AvProConnectionError
+from .avpro.http_decode import decode
+from .avpro.protocol import StatusEndpoint
 from .avpro.transport import Transport
 from .const import (
     CONF_ALLOW_WRITES,
@@ -88,6 +90,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AvProConfigEntry) -> boo
     )
     await coordinator.async_prepare()
 
+    if transport.name != "http":
+        await _async_seed_identity(client, coordinator)
+
     # Raises ConfigEntryNotReady on failure, which is `test-before-setup`: entities are never
     # created against a matrix we have not actually read.
     await coordinator.async_config_entry_first_refresh()
@@ -122,3 +127,23 @@ async def _async_options_updated(hass: HomeAssistant, entry: AvProConfigEntry) -
     # The setter reschedules the timer for us.
     coordinator.update_interval = _interval(entry, coordinator.transport)
     coordinator.async_update_listeners()
+
+
+async def _async_seed_identity(client: AvProClient, coordinator: AvProCoordinator) -> None:
+    """Read model, firmware and the port names over HTTP, once.
+
+    Telnet cannot report any of them -- ``GET STA`` covers routing and settings and stops there.
+    So this is the same documented exception that covers renaming: HTTP is used for an operation
+    only HTTP has, and for nothing else. It runs once at setup rather than on a schedule, because
+    port names change when somebody renames them, which a reload picks up.
+
+    Best-effort. A matrix whose identity body will not parse is still perfectly usable; the
+    source picker just falls back to positional labels.
+    """
+    for endpoint in (StatusEndpoint.WEB, StatusEndpoint.NETWORK):
+        try:
+            parsed = await client.async_read(endpoint)
+        except AvProConnectionError as err:
+            _LOGGER.debug("identity read of %s failed: %s", endpoint.value, err)
+            continue
+        coordinator.seed(decode(endpoint, parsed, port_count=coordinator.matrix.port_count))

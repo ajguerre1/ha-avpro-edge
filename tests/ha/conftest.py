@@ -85,6 +85,22 @@ def make_entry(
 
 
 @pytest.fixture
+async def http_entry(hass: HomeAssistant, fake: FakeMatrix) -> MockConfigEntry:
+    """An entry forced onto the HTTP transport.
+
+    For assertions about individually countable requests: one HTTP request is one command,
+    whereas telnet multiplexes everything down a single socket.
+    """
+    from custom_components.ha_avpro_edge.const import CONF_TRANSPORT, TRANSPORT_HTTP
+
+    entry = make_entry(fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+@pytest.fixture
 async def loaded_entry(hass: HomeAssistant, fake: FakeMatrix) -> MockConfigEntry:
     """An entry set up against the fake and fully loaded."""
     entry = make_entry(fake.host, telnet_port=fake.telnet_port)

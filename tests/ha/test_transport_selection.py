@@ -107,6 +107,30 @@ async def test_no_http_request_is_issued_for_anything_telnet_supports(
     assert fake.requests == [], f"HTTP was used while telnet was connected: {fake.requests}"
 
 
+async def test_identity_is_the_only_http_read_and_it_happens_once(
+    hass: HomeAssistant, fake
+) -> None:
+    """The documented exception, bounded.
+
+    Telnet cannot report model, firmware or the port names -- GET STA covers routing and settings
+    and stops there. Reading them over HTTP is the same exception that covers renaming: an
+    operation only HTTP has. It must happen at setup and never again, or it becomes the hedging
+    the rule forbids.
+    """
+    await _setup(hass, fake)
+
+    identity_reads = [r.split("?")[0] for r in fake.requests]
+    assert set(identity_reads) <= {"WEBDivSta.CGI", "NETDivSta.CGI"}
+    assert identity_reads.count("WEBDivSta.CGI") == 1
+
+
+async def test_the_port_names_survive_on_telnet(hass: HomeAssistant, fake) -> None:
+    """Without the identity read the picker would show "Input 1" where the matrix says SrcA."""
+    await _setup(hass, fake)
+    state = hass.states.get("media_player.ac_mx44_auhd_output_1")
+    assert state.attributes["source_list"] == ["SrcA", "SrcB", "SrcC", "SrcD"]
+
+
 async def test_the_safety_net_read_is_telnet_not_an_http_poll(hass: HomeAssistant, fake) -> None:
     entry = await _setup(hass, fake)
     coordinator = entry.runtime_data.coordinator

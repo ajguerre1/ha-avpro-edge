@@ -171,6 +171,17 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
 
     # -- state ---------------------------------------------------------------------------
 
+    def seed(self, report: DeviceReport) -> None:
+        """Fold in facts the active transport cannot supply for itself.
+
+        Telnet reads 45 values in one command but has no notion of port names, model or
+        firmware -- those exist only in the HTTP interface's identity body. Supplying them from
+        the other wire is not hedging: it is the documented exception for an operation only HTTP
+        has, exactly like renaming. Without it the source picker would read "Input 1" where the
+        matrix itself says something meaningful.
+        """
+        self._state = st.apply(self._state, report)
+
     @property
     def matrix(self) -> MatrixState:
         """Device truth, without the optimistic overlay."""
