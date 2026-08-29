@@ -48,11 +48,19 @@ Legend: **[A]** agent action · **[U]** user action (live-device confirmation).
 | C1 | **[A]** `avpro/telnet/protocol.py` — pure line grammar, `OUT1 VS IN2` → `("video_route_1", 2)`, every line form from `GET STA` | new | B1 | T-N1..T-N6 |
 | C2 | **[A]** `avpro/telnet/client.py` — persistent socket, line framing, `GET STA` census, push dispatch, reconnect with per-entry jitter | new | C1, B3 | T-N7..T-N12 |
 | C3 | **[A]** Extend `tools/fake_avpro.py` with a telnet server: real grammar, push on change, and faults (`socket-busy`, `drops-idle`, `push-only`, `garbled-line`) | `fake_avpro.py` | C1 | T-N13 |
-| C4 | **[A]** Retire the telnet tripwire's blanket ban; narrow it to "never connect under the `http` setting" | `test_no_telnet.py` | C2 | T-X1 |
+| C4 | **[A]** Replace the telnet tripwire with a *transport-discipline* guard: telnet carries everything it can, HTTP only where telnet cannot go | `test_no_telnet.py` → `test_transport_discipline.py` | C2 | T-X1, T-X2, T-X3 |
 
-> C4 is a deliberate weakening of an existing guard and must not be done casually. The guard's
-> purpose changes from "never speak telnet" to "never speak telnet when told not to", which is
-> the actual requirement (S8). The test is rewritten, not deleted.
+> C4 inverts an existing guard rather than weakening it. The old rule was "never speak telnet",
+> which was only ever a proxy for "do not take a socket someone else needs". The real rule, per
+> the owner: **telnet is primary — always speak telnet unless you don't need to.** So the guard
+> now asserts three things instead of one:
+>
+> - nothing connects to port 23 under the `http` setting (the escape hatch still holds);
+> - **no HTTP request is issued for anything telnet supports while telnet is connected** — no
+>   hedging, no dual-polling, one source of truth;
+> - HTTP is reachable for the operations telnet genuinely lacks (port rename).
+>
+> The middle assertion is the new one, and it is the one that encodes the owner's rule.
 
 ### M-D — Selection and fallback
 

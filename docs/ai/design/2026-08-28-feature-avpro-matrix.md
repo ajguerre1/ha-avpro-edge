@@ -69,8 +69,8 @@ graph TD
 ```python
 @dataclass(frozen=True, slots=True)
 class DeviceReport:
-    values: Mapping[str, Any]     # canonical state key -> value
-    complete: bool                # a full census, or a partial push?
+    values: Mapping[str, Any]  # canonical state key -> value
+    complete: bool  # a full census, or a partial push?
 ```
 
 `complete` matters: a full report may clear fields it does not mention (the device has told us
@@ -107,16 +107,16 @@ this is a mapping rather than a guess.
 class Transport(Protocol):
     """What the coordinator may assume, regardless of which wire is in use."""
 
-    capabilities: TransportCapabilities   # what this wire can read and write
+    capabilities: TransportCapabilities  # what this wire can read and write
 
     async def async_connect(self) -> None: ...
     async def async_disconnect(self) -> None: ...
-    async def async_read_all(self) -> DeviceReport: ...          # full census
+    async def async_read_all(self) -> DeviceReport: ...  # full census
     async def async_command(self, key: str, value: Any) -> None: ...
     def subscribe(self, on_report: Callable[[DeviceReport], None]) -> Callable[[], None]: ...
 
     @property
-    def pushes(self) -> bool: ...   # True for telnet, False for HTTP
+    def pushes(self) -> bool: ...  # True for telnet, False for HTTP
 ```
 
 `subscribe` exists on both. The HTTP client simply never calls back, so the coordinator does not
@@ -147,15 +147,37 @@ A persistent connection, because that is the only way to receive pushes.
 
 ### 2. Transport selection and fallback
 
+**The governing rule: telnet is primary. Always speak telnet unless there is a reason not to.**
+
+That is stronger than "telnet is allowed", and the difference is worth stating because it decides
+several downstream choices. Telnet is not a capability to be justified call by call; it is the
+channel. HTTP is the exception, used in exactly three situations:
+
+| HTTP is used when | Why |
+|---|---|
+| Telnet is unavailable — socket busy, connection failed | Fallback. Better a polling integration than none |
+| The operation is one only HTTP can do | Port rename (R19) has no telnet equivalent |
+| The user has set the transport to `http` | The escape hatch, honoured absolutely (S8) |
+
+Everything else goes over telnet, including the periodic safety-net read — that is a `GET STA`
+on the open telnet session, **not** an HTTP poll. Running HTTP alongside a healthy telnet
+connection would be hedging: two transports doing one transport's job, double the device load,
+and two sources of truth to reconcile.
+
 | Setting | Behaviour |
 |---|---|
-| `auto` (default) | Try telnet. If the socket is busy or the connection fails, fall back to HTTP and retry telnet every 5 minutes. Log the fallback once |
-| `telnet` | Telnet only. If unavailable, the entry is not ready — do not silently degrade |
-| `http` | **Never open port 23.** Honours S8 absolutely |
+| `auto` (default) | Telnet, always. If it is unavailable, fall back to HTTP and retry telnet every 5 minutes. Log the fallback once |
+| `telnet` | Telnet only. If unavailable the entry is not ready — do not silently degrade |
+| `http` | **Never open port 23.** The escape hatch for an installation whose control system needs the socket |
 
 Under `http`, telnet-only entities (stream, input power, key lock, LCD timeout) are not created.
 Capability drives entity creation, exactly as an absent HTTP endpoint already does — so the
 existing mechanism extends rather than being replaced.
+
+A consequence worth naming: once telnet connects, the integration **holds the socket for as long
+as the entry is loaded**. That is deliberate — a connection opened and closed per command would
+give up push, which is most of telnet's value. The socket is released on unload, on reload, and
+on switching to `http`.
 
 ### 3. What this deletes
 
