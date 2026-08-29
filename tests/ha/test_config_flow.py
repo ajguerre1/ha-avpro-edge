@@ -222,4 +222,6 @@ async def test_changing_options_does_not_reload_the_entry(
 
     assert loaded_entry.runtime_data.coordinator is coordinator
     assert coordinator.update_interval.total_seconds() == 15
-    assert coordinator.client.allow_writes is False
+    # The client is reached through the runtime rather than the coordinator: the coordinator
+    # holds a Transport and deliberately cannot see the wire beneath it.
+    assert loaded_entry.runtime_data.client.allow_writes is False
