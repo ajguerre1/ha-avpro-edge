@@ -7,39 +7,42 @@ from an unaffiliated public repository would be redistributing someone else's tr
 third-party integration look official. That was over-cautious: Home Assistant's own brands
 repository is built almost entirely out of manufacturer logos, because an integration icon is
 there to identify *which device* it controls. Using the mark of the product this actually drives
-is nominative, and it is what every user expects to see in the integrations list. The owner asked
-for the real logo; the drawn crosspoint icon is gone.
+is nominative, and it is what a user expects to see in the integrations list.
 
 The mark remains the property of AVPro Edge, and this project is not affiliated with them --
 recorded in the README rather than only here.
 
-## What gets generated, and why the icon is not the whole wordmark
+## The dark wordmark, and why it is the better source
 
-The source is a 540 x 167 wordmark: a 3.2:1 rectangle. Home Assistant renders an integration icon
-at roughly 48 pixels square, and a 3.2:1 wordmark scaled to fit inside that is about 15 pixels
-tall -- legible as a grey smudge and nothing else.
+The first version of this used the light artwork: black glyphs on white, keyed to transparency.
+It worked, and it had one real flaw -- black glyphs on a transparent background disappear against
+a dark Home Assistant theme, which is the theme most of this installation runs.
 
-So the two assets are cut differently, which is exactly the distinction Home Assistant draws
-between an *icon* and a *logo*:
+The source is now the dark wordmark: **white glyphs on black**, with the black kept rather than
+keyed out. A tile carries its own contrast, so the icon reads identically on a light card and a
+dark one, and the failure mode is gone rather than mitigated.
 
-* ``icon.png`` is the **AV ligature alone** (source x30-257). It is bold, nearly square at 1.37:1,
-  and still reads at 48 pixels.
+That also deletes a whole layer of machinery. There is no white to key, so there is no hard
+threshold, no unmultiply question, and no colour bleeding to stop a Lanczos reduction averaging
+glyph edges against a background that should not be there. The source's own anti-aliasing is
+already against black, which is exactly what the output composites onto. Crop, place, resize.
+
+## Why the icon is not the whole wordmark
+
+The mark is 894 x 276 -- 3.24:1. Home Assistant renders an integration icon at roughly 48 pixels
+square, and a 3.24:1 wordmark scaled to fit inside that is about 15 pixels tall: legible as a grey
+smudge and nothing else.
+
+So the two assets are cut differently, which is the distinction Home Assistant draws between an
+*icon* and a *logo*:
+
+* ``icon.png`` is the **AV ligature alone**. At 1.37:1 it very nearly fills a square, and it still
+  reads at 48 pixels.
 * ``logo.png`` is the **full wordmark**, where there is room for it.
 
-The split point is measured rather than eyeballed: scanning the source's column ink profile, the
-V's taper thins to a single pixel at x257 and the P's stem starts abruptly at x258 with a full
-70-pixel column. There is no ambiguity about where one ends and the other begins.
-
-## Transparency
-
-The source has an opaque white background, and brand assets need alpha. Keying is done at full
-resolution with a hard threshold and *then* downsampled, so the anti-aliasing comes from the
-resize rather than from a soft key -- which keeps the green block a solid green instead of the
-washed-out 75%-alpha colour an unmultiply-from-white would produce.
-
-Before downsampling, ink colour is bled a few pixels into the transparent region. Without that,
-the resize averages edge pixels against white and every glyph picks up a pale fringe that only
-shows once the icon is composited onto a dark theme.
+The split is measured rather than eyeballed. Scanning the source's column ink profile, the V's
+taper runs out at x888, columns 889 and 890 are completely empty, and the P's stem starts at x891
+with a full 113-pixel column. There is no ambiguity about where one ends and the other begins.
 
 Pillow is a development dependency only. It is used here and nowhere in the integration, and
 ``manifest.json`` stays at ``requirements: []``.
@@ -50,102 +53,66 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import numpy as np
 from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BRAND_DIR = REPO_ROOT / "custom_components" / "ha_avpro_edge" / "brand"
-SOURCE = REPO_ROOT / "assets" / "avpro-edge-wordmark.png"
+SOURCE = REPO_ROOT / "assets" / "avpro-edge-wordmark.jpg"
 
-#: Anything darker than this on any channel is ink. The background is pure white and the lightest
-#: real colour in the mark is the green at (147, 197, 39), so there is a wide margin either side.
-WHITE_CUTOFF = 240
+#: The artwork's own background, sampled from the source rather than assumed to be pure black.
+#: A JPEG of a black field usually is exactly zero in the flat areas, but reading it means the
+#: composed padding cannot develop a seam against the crop if that ever stops being true.
+BACKGROUND = (0, 0, 0)
 
 #: Measured crops in source pixels, (left, top, right, bottom) inclusive.
-AV_LIGATURE = (30, 216, 257, 382)
-FULL_WORDMARK = (30, 216, 569, 382)
+AV_LIGATURE = (513, 402, 889, 677)
+FULL_WORDMARK = (513, 402, 1406, 677)
 
-#: No margin at all. The Home Assistant brands specification says the image "should be trimmed,
-#: so it contains the minimum amount of empty space on the edges", and real entries confirm it --
-#: `custom_integrations/spook` has ink running to all four edges of its 256x256 icon with zero
-#: padding. An earlier draft here used a 10% margin because it looked better in isolation, which
-#: is the wrong frame: these are rendered in a grid beside a thousand other icons that are
-#: trimmed, so padding makes this one look small rather than tidy.
+#: How much of the icon's width the AV ligature spans.
 #:
-#: The AV ligature is 1.37:1, so it fills the width exactly and the aspect ratio alone decides
-#: what is left above and below. That is the minimum empty space achievable for a mark that is
-#: not square.
-ICON_MARGIN = 0.0
+#: The Home Assistant brands specification asks for images "trimmed, so [they contain] the minimum
+#: amount of empty space on the edges", and that rule is about the *artwork*, which here is the
+#: tile: the black runs to all four edges, so nothing is trimmable. What is inside the tile is
+#: design, and a mark pressed against the edge of its own tile looks like a mistake.
+ICON_FILL = 0.84
 
-#: How far ink colour is pushed into the transparent region before downsampling. Three pixels
-#: comfortably covers the ~2.3-pixel kernel of a 600 -> 256 Lanczos reduction.
-BLEED = 3
-
-
-def keyed(image: Image.Image) -> tuple[np.ndarray, np.ndarray]:
-    """Split an opaque-white-backed image into RGB and a hard alpha mask."""
-    rgb = np.array(image.convert("RGB")).astype(np.uint8)
-    alpha = np.where(rgb.min(axis=2) < WHITE_CUTOFF, 255, 0).astype(np.uint8)
-    return rgb, alpha
+#: Padding around the wordmark in the logo, as a fraction of the mark's height. Enough to stop the
+#: glyphs touching the edge of the black, and proportionally close to the icon's so the two read
+#: as a pair rather than as two unrelated crops.
+LOGO_PAD = 0.14
 
 
-def bleed_colour(rgb: np.ndarray, alpha: np.ndarray, distance: int = BLEED) -> np.ndarray:
-    """Push ink colour outwards into the transparent region.
-
-    The transparent pixels are white, and a Lanczos reduction does not know to ignore them: it
-    averages them into every edge, so each glyph ends up ringed in pale grey. Invisible on a white
-    page and obvious the moment the icon lands on a dark card.
-    """
-    rgb = rgb.copy()
-    known = alpha > 0
-    for _ in range(distance):
-        for shift in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            axis = (0, 1)
-            neighbour_rgb = np.roll(rgb, shift, axis=axis)
-            neighbour_known = np.roll(known, shift, axis=axis)
-            take = ~known & neighbour_known
-            rgb[take] = neighbour_rgb[take]
-            known = known | take
-    return rgb
-
-
-def render(
-    rgb: np.ndarray,
-    alpha: np.ndarray,
-    box: tuple[int, int, int, int],
-    size: tuple[int, int],
-    *,
-    margin: float = 0.0,
-) -> Image.Image:
-    """Crop, scale to fit inside ``size``, and centre on a transparent canvas.
-
-    RGB and alpha are resized separately. Resizing them together would let Pillow interpolate
-    colour and coverage as one quantity, which is only correct for premultiplied data.
-    """
+def cropped(image: Image.Image, box: tuple[int, int, int, int]) -> Image.Image:
+    """Crop by inclusive pixel coordinates, which is how the measurements above are written."""
     left, top, right, bottom = box
-    colour = Image.fromarray(rgb[top : bottom + 1, left : right + 1], "RGB")
-    mask = Image.fromarray(alpha[top : bottom + 1, left : right + 1], "L")
-
-    width, height = size
-    usable_w = width * (1 - 2 * margin)
-    usable_h = height * (1 - 2 * margin)
-    scale = min(usable_w / colour.width, usable_h / colour.height)
-    target = (max(1, round(colour.width * scale)), max(1, round(colour.height * scale)))
-
-    colour = colour.resize(target, Image.LANCZOS)
-    mask = mask.resize(target, Image.LANCZOS)
-
-    canvas = Image.new("RGBA", size, (0, 0, 0, 0))
-    art = Image.merge("RGBA", (*colour.split(), mask))
-    canvas.paste(art, ((width - target[0]) // 2, (height - target[1]) // 2), art)
-    return canvas
+    return image.crop((left, top, right + 1, bottom + 1))
 
 
-def _logo_size(height: int) -> tuple[int, int]:
-    """Canvas for the wordmark at a given height, preserving its aspect ratio."""
-    left, top, right, bottom = FULL_WORDMARK
-    aspect = (right - left + 1) / (bottom - top + 1)
-    return (round(height * aspect), height)
+def on_tile(art: Image.Image, canvas: tuple[int, int], size: tuple[int, int]) -> Image.Image:
+    """Centre ``art`` on a background tile of ``canvas`` proportions, then resize to ``size``.
+
+    Composed at source resolution and reduced once, so the single Lanczos pass is the only
+    resampling the artwork sees.
+    """
+    tile = Image.new("RGB", canvas, BACKGROUND)
+    tile.paste(art, ((canvas[0] - art.width) // 2, (canvas[1] - art.height) // 2))
+    return tile.resize(size, Image.LANCZOS).convert("RGBA")
+
+
+def build_icon(source: Image.Image, size: int) -> Image.Image:
+    """The AV ligature, centred on a square black tile."""
+    art = cropped(source, AV_LIGATURE)
+    side = round(art.width / ICON_FILL)
+    return on_tile(art, (side, side), (size, size))
+
+
+def build_logo(source: Image.Image, height: int) -> Image.Image:
+    """The full wordmark on a black tile, with a proportional margin."""
+    art = cropped(source, FULL_WORDMARK)
+    pad = round(art.height * LOGO_PAD)
+    canvas = (art.width + 2 * pad, art.height + 2 * pad)
+    width = round(height * canvas[0] / canvas[1])
+    return on_tile(art, canvas, (width, height))
 
 
 def main() -> int:
@@ -153,27 +120,23 @@ def main() -> int:
         print(f"source artwork not found: {SOURCE}")
         return 2
 
-    rgb, alpha = keyed(Image.open(SOURCE))
-    rgb = bleed_colour(rgb, alpha)
+    source = Image.open(SOURCE).convert("RGB")
     BRAND_DIR.mkdir(parents=True, exist_ok=True)
 
     outputs = {
-        # Square, from the AV ligature. Sizes fixed by the Home Assistant brands specification.
-        "icon.png": (AV_LIGATURE, (256, 256), ICON_MARGIN),
-        "icon@2x.png": (AV_LIGATURE, (512, 512), ICON_MARGIN),
-        # Wide, from the whole wordmark. The specification constrains the *shortest* side --
-        # 128-256 for the base and 256-512 for hDPI, "maximum preferred" -- and leaves the long
-        # side to the brand's own aspect ratio. spook ships 500x128 and 1000x256 on exactly that
-        # basis. The wordmark is 3.23:1, so a 256-tall logo is 827 wide.
-        "logo.png": (FULL_WORDMARK, _logo_size(256), 0.0),
-        "logo@2x.png": (FULL_WORDMARK, _logo_size(512), 0.0),
+        # Square, sizes fixed by the brands specification.
+        "icon.png": build_icon(source, 256),
+        "icon@2x.png": build_icon(source, 512),
+        # Wide. The specification constrains the *shortest* side -- 128-256 for the base and
+        # 256-512 for hDPI, "maximum preferred" -- and leaves the long side to the brand's own
+        # aspect ratio. `custom_integrations/spook` ships 500x128 and 1000x256 on that basis.
+        "logo.png": build_logo(source, 256),
+        "logo@2x.png": build_logo(source, 512),
     }
 
-    for name, (box, size, margin) in outputs.items():
-        image = render(rgb, alpha, box, size, margin=margin)
+    for name, image in outputs.items():
         image.save(BRAND_DIR / name, optimize=True)
-        opaque = np.array(image)[..., 3] > 0
-        print(f"{name:14} {image.size[0]}x{image.size[1]}  {opaque.mean():5.1%} covered")
+        print(f"{name:14} {image.size[0]}x{image.size[1]}")
 
     return 0
 
