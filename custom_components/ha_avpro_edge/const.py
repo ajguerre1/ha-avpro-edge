@@ -17,6 +17,28 @@ MANUFACTURER: Final = "AVPro Edge"
 
 CONF_ALLOW_WRITES: Final = "allow_writes"
 CONF_POLLING_PROFILE: Final = "polling_profile"
+CONF_TRANSPORT: Final = "transport"
+
+#: How the integration reaches the matrix.
+#:
+#: Telnet is primary: it pushes changes within ~300-400 ms, reads the whole device in one
+#: command, and is the only wire that can see output stream state, input power, key lock and the
+#: LCD timeout. HTTP is the exception -- used when telnet is unavailable, for the one operation
+#: only it has (renaming ports), or when the user has asked for it.
+TRANSPORT_AUTO: Final = "auto"
+TRANSPORT_TELNET: Final = "telnet"
+TRANSPORT_HTTP: Final = "http"
+
+TRANSPORT_OPTIONS: Final[tuple[str, ...]] = (TRANSPORT_AUTO, TRANSPORT_TELNET, TRANSPORT_HTTP)
+DEFAULT_TRANSPORT: Final = TRANSPORT_AUTO
+
+#: How often to retry telnet after falling back to HTTP. Long, because the reason for falling
+#: back is usually another controller holding the socket, and that does not change by the second.
+TELNET_RETRY_INTERVAL: Final = 300.0
+
+#: Safety-net read interval on a pushing transport. Pushes carry normal operation; this exists
+#: only so a missed one cannot leave state stale indefinitely.
+PUSH_SAFETY_NET_INTERVAL: Final = 60
 
 #: Seconds between polls for each profile. "Balanced" matches the cadence the unit's own web UI
 #: uses for the tab it is displaying, which is the most defensible default available: it is what

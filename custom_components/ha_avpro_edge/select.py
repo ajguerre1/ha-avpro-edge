@@ -4,10 +4,9 @@ All disabled by default and categorised as configuration. They are install-time 
 device whose routing is the only thing that changes day to day, and every enabled entity on this
 installation fans its state out to around fifty wall panels.
 
-The per-input EDID selector is deliberately **not** here yet. Reads return tokens like
-``EDIDU1`` while writes take a preset index, and the mapping between the two vocabularies has not
-been established against hardware. Shipping a selector built on a guessed mapping would let a
-user pick "4K60 8CH HDR" and silently get something else, which is worse than not offering it.
+Which selects exist depends on what the live transport can read. Telnet can read every setting
+here; the HTTP interface cannot see output stream state, input power, key lock or the LCD
+timeout, so under HTTP those entities are simply not created rather than reading unknown forever.
 """
 
 from __future__ import annotations
@@ -117,13 +116,18 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
     ports = coordinator.matrix.port_count
 
+    # Capability-driven: a wire that cannot read a setting gets no entity for it, rather than
+    # one that reads unknown forever. Extends the mechanism already used for endpoints a given
+    # firmware lacks.
     entities: list[AvProSelect] = [
         AvProSelect(coordinator, description, index)
         for group in (PER_OUTPUT, PER_INPUT)
         for description in group
+        if coordinator.supports(description.kind)
         for index in range(1, ports + 1)
     ]
-    entities.append(AvProSelect(coordinator, DEVICE_LEVEL, None))
+    if coordinator.supports(DEVICE_LEVEL.kind):
+        entities.append(AvProSelect(coordinator, DEVICE_LEVEL, None))
     async_add_entities(entities)
 
 

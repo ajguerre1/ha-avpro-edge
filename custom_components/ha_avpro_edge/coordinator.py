@@ -94,8 +94,12 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
     # -- lifecycle -----------------------------------------------------------------------
 
     async def async_prepare(self) -> None:
-        """Connect and subscribe. Safe on a transport that does neither."""
-        await self.transport.async_connect()
+        """Subscribe to whatever the transport volunteers.
+
+        Connecting is the selector's job, not this one's -- it has to connect in order to know
+        whether telnet is even available, and connecting twice would take the socket, drop it and
+        take it again.
+        """
         self._unsubscribe = self.transport.subscribe(self._on_push)
 
     async def async_shutdown(self) -> None:

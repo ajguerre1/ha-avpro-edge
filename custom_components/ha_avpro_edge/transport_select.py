@@ -1,0 +1,99 @@
+"""Choosing a wire, and falling back when the preferred one is unavailable.
+
+**Telnet is primary. Always speak telnet unless you don't need to.** This module is where that
+rule is enforced, so it is worth being explicit about what "unless you don't need to" means:
+
+| Setting | Behaviour |
+|---|---|
+| ``auto`` | Telnet. If it is unavailable, fall back to HTTP and retry telnet periodically |
+| ``telnet`` | Telnet only. If unavailable, the entry is not ready -- do not silently degrade |
+| ``http`` | **Never open port 23.** The escape hatch |
+
+The ``http`` setting is honoured absolutely and is checked before anything else happens, because
+an installation whose control system needs that socket must be able to say so and be obeyed. A
+test asserts nothing connects under it.
+
+Falling back is deliberately not silent, but it is also logged only once: a matrix whose slot is
+held by another controller would otherwise write the same line every retry, forever.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_HOST
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
+
+from .avpro.client import AvProClient
+from .avpro.http_transport import HttpTransport
+from .avpro.telnet_client import TelnetBusy, TelnetError, TelnetTransport
+from .avpro.transport import Transport
+from .const import (
+    CONF_ALLOW_WRITES,
+    CONF_TRANSPORT,
+    DEFAULT_ALLOW_WRITES,
+    DEFAULT_TRANSPORT,
+    TRANSPORT_HTTP,
+    TRANSPORT_TELNET,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def transport_setting(entry: ConfigEntry) -> str:
+    return entry.options.get(CONF_TRANSPORT, DEFAULT_TRANSPORT)
+
+
+def wants_telnet(entry: ConfigEntry) -> bool:
+    """Whether this entry may open the control socket at all.
+
+    The single check that stands between the user's instruction and the house's control system.
+    """
+    return transport_setting(entry) != TRANSPORT_HTTP
+
+
+async def async_select_transport(
+    hass: HomeAssistant, entry: ConfigEntry, client: AvProClient
+) -> Transport:
+    """Return a connected transport, honouring the entry's setting.
+
+    Raises :class:`ConfigEntryNotReady` when telnet was explicitly required and is unavailable --
+    silently degrading would hide the very thing the user asked for.
+    """
+    setting = transport_setting(entry)
+
+    if setting == TRANSPORT_HTTP:
+        # No telnet object is even constructed. Nothing to accidentally connect.
+        _LOGGER.debug("%s: transport forced to HTTP; port 23 will not be touched", entry.title)
+        return HttpTransport(client)
+
+    telnet = TelnetTransport(
+        entry.data[CONF_HOST],
+        allow_writes=entry.options.get(CONF_ALLOW_WRITES, DEFAULT_ALLOW_WRITES),
+        # Per-entry stream, so two matrices never reconnect in lockstep.
+        seed=entry.entry_id,
+    )
+
+    try:
+        await telnet.async_connect()
+    except TelnetBusy as err:
+        if setting == TRANSPORT_TELNET:
+            raise ConfigEntryNotReady(str(err)) from err
+        _LOGGER.warning(
+            "%s: the telnet control socket is unavailable (%s). Falling back to the HTTP "
+            "interface, which works but cannot see output stream state, input power, key lock "
+            "or the LCD timeout, and must poll rather than being pushed to",
+            entry.title,
+            err,
+        )
+        return HttpTransport(client)
+    except TelnetError as err:
+        if setting == TRANSPORT_TELNET:
+            raise ConfigEntryNotReady(str(err)) from err
+        _LOGGER.warning("%s: telnet unavailable (%s); falling back to HTTP", entry.title, err)
+        return HttpTransport(client)
+
+    _LOGGER.debug("%s: using the telnet transport", entry.title)
+    return telnet

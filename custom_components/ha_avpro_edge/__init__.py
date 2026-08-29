@@ -17,15 +17,17 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .avpro.client import AvProClient
-from .avpro.http_transport import HttpTransport
+from .avpro.transport import Transport
 from .const import (
     CONF_ALLOW_WRITES,
     CONF_POLLING_PROFILE,
     DEFAULT_ALLOW_WRITES,
     DEFAULT_POLLING_PROFILE,
     POLLING_PROFILES,
+    PUSH_SAFETY_NET_INTERVAL,
 )
 from .coordinator import AvProCoordinator
+from .transport_select import async_select_transport
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,7 +53,15 @@ class AvProRuntime:
 type AvProConfigEntry = ConfigEntry[AvProRuntime]
 
 
-def _interval(entry: ConfigEntry) -> timedelta:
+def _interval(entry: ConfigEntry, transport: Transport) -> timedelta:
+    """How often to read.
+
+    A pushing transport is not polled on the user's profile at all -- doing so would be asking a
+    device that already volunteers its changes. What remains is a slow safety net, so a missed
+    push cannot leave state stale indefinitely.
+    """
+    if transport.pushes:
+        return timedelta(seconds=PUSH_SAFETY_NET_INTERVAL)
     profile = entry.options.get(CONF_POLLING_PROFILE, DEFAULT_POLLING_PROFILE)
     return timedelta(
         seconds=POLLING_PROFILES.get(profile, POLLING_PROFILES[DEFAULT_POLLING_PROFILE])
@@ -69,11 +79,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: AvProConfigEntry) -> boo
         seed=entry.entry_id,
     )
 
-    # The coordinator talks to a Transport, never to a wire directly. Today that is always HTTP;
-    # the telnet transport slots in here without the coordinator or any entity changing.
-    transport = HttpTransport(client)
+    # Telnet if it will have us, HTTP otherwise. The coordinator is handed a connected
+    # Transport and never learns which wire it got.
+    transport = await async_select_transport(hass, entry, client)
 
-    coordinator = AvProCoordinator(hass, entry, transport, update_interval=_interval(entry))
+    coordinator = AvProCoordinator(
+        hass, entry, transport, update_interval=_interval(entry, transport)
+    )
     await coordinator.async_prepare()
 
     # Raises ConfigEntryNotReady on failure, which is `test-before-setup`: entities are never
@@ -101,9 +113,12 @@ async def _async_options_updated(hass: HomeAssistant, entry: AvProConfigEntry) -
     installation driving wall panels is a visible blink across the house.
     """
     coordinator = entry.runtime_data.coordinator
-    entry.runtime_data.client.allow_writes = entry.options.get(
-        CONF_ALLOW_WRITES, DEFAULT_ALLOW_WRITES
-    )
+    allow_writes = entry.options.get(CONF_ALLOW_WRITES, DEFAULT_ALLOW_WRITES)
+    entry.runtime_data.client.allow_writes = allow_writes
+    # Whichever wire is live also needs telling. The telnet transport holds its own flag because
+    # it does not go through the HTTP client at all.
+    if hasattr(coordinator.transport, "allow_writes"):
+        coordinator.transport.allow_writes = allow_writes
     # The setter reschedules the timer for us.
-    coordinator.update_interval = _interval(entry)
+    coordinator.update_interval = _interval(entry, coordinator.transport)
     coordinator.async_update_listeners()

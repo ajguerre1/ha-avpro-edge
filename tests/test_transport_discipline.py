@@ -24,8 +24,6 @@ import re
 import tokenize
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = ROOT / "custom_components"
 TOOLS = ROOT / "tools"
@@ -132,27 +130,20 @@ def test_the_scan_actually_found_files() -> None:
 
 
 # ---------------------------------------------------------------------------------------------
-# T-X1 / T-X2 / T-X3 -- placeholders until the transport selector lands (D1-D4)
+# T-X1 / T-X2 / T-X3 -- the behavioural half of the rule
 # ---------------------------------------------------------------------------------------------
 #
-# These three are the behavioural half of the rule and they need a transport that can be selected,
-# which is task D2. They are declared now, failing loudly rather than silently absent, so the
-# selector cannot land without them.
+# Implemented in tests/ha/test_transport_selection.py, because they need a config entry and a
+# selected transport. They were declared here as strict xfail while the selector was being built,
+# so it could not land without them; that debt is now paid and the placeholders are gone.
+#
+#   T-X1  nothing connects to the control socket under the http setting
+#   T-X2  no HTTP request is issued for anything telnet supports, while telnet is connected
+#   T-X3  a port rename still reaches HTTP -- the one thing telnet cannot do
 
 
-@pytest.mark.xfail(reason="needs the transport selector (D2)", strict=True)
-def test_nothing_connects_to_port_23_under_the_http_setting() -> None:
-    """T-X1. The escape hatch, and the one assertion that must never be relaxed."""
-    raise AssertionError("not implemented until D2")
-
-
-@pytest.mark.xfail(reason="needs the transport selector (D2)", strict=True)
-def test_no_http_request_is_issued_for_anything_telnet_supports() -> None:
-    """T-X2. The assertion that encodes "always speak telnet unless you don't need to"."""
-    raise AssertionError("not implemented until D2")
-
-
-@pytest.mark.xfail(reason="needs the transport selector (D2)", strict=True)
-def test_a_port_rename_does_reach_http_even_while_telnet_is_connected() -> None:
-    """T-X3. The one operation telnet genuinely lacks."""
-    raise AssertionError("not implemented until D2")
+def test_the_behavioural_assertions_exist_somewhere() -> None:
+    """Guards against the pair above being quietly deleted rather than implemented."""
+    ha_suite = (ROOT / "tests" / "ha" / "test_transport_selection.py").read_text(encoding="utf-8")
+    assert "nothing_connects_to_the_control_socket_under_the_http_setting" in ha_suite
+    assert "no_http_request_is_issued_for_anything_telnet_supports" in ha_suite

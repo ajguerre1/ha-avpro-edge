@@ -67,6 +67,7 @@ async def async_setup_entry(
     async_add_entities(
         AvProSwitch(coordinator, description, output)
         for description in PER_OUTPUT
+        if coordinator.supports(description.kind)
         for output in range(1, coordinator.matrix.port_count + 1)
     )
 
