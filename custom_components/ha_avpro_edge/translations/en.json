@@ -202,5 +202,11 @@
     "invalid_port_name": {
       "message": "That port name cannot be used: {reason}."
     }
+  },
+  "issues": {
+    "telnet_unavailable": {
+      "title": "{name}: the control socket is unavailable",
+      "description": "Home Assistant could not open the telnet control port on {name} and is running on the HTTP interface instead.\n\nThe matrix is still controllable, but output stream state, input power, key lock and the LCD timeout cannot be read on this wire, so those controls are missing, and changes are polled rather than pushed.\n\nNothing else should be holding this port. The usual causes are a matrix that is rebooting, a network interruption, or a control session left open by another system. Home Assistant re-checks every minute and reloads by itself once the port is free; this message will disappear on its own when it does."
+    }
   }
 }

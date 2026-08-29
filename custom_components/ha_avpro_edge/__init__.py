@@ -1,8 +1,17 @@
 """AVPro Edge — Home Assistant integration for AUHD-series HDMI matrix switchers.
 
-Talks to the matrix over its CGI interface on port 80, never over telnet. The telnet server on
-this hardware accepts one client at a time, and in a typical installation that slot belongs to a
-control system the house depends on; see ``avpro/client.py``.
+Talks to the matrix over its telnet command set on port 23, falling back to the CGI interface on
+port 80 when that socket cannot be had. Telnet is primary because it pushes changes within
+~300-400 ms, reads the whole device in one command, and is the only wire that can see output
+stream state, input power, key lock and the LCD timeout.
+
+The telnet server accepts **one client at a time**, which is a property of the hardware. In a
+typical installation that slot belongs to a control system the house depends on; here it does not.
+This integration exists so that control system can be decommissioned, so an unavailable control
+socket is treated as a fault rather than as a neighbour's claim -- see ``transport_select.py``.
+
+Signal detection is the one thing telnet cannot read at all, established by probing the live unit
+rather than assumed. It is supplemented over HTTP; see ``avpro/supplement.py``.
 """
 
 from __future__ import annotations
@@ -13,7 +22,8 @@ from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .avpro.client import AvProClient, AvProConnectionError
@@ -25,11 +35,13 @@ from .const import (
     CONF_POLLING_PROFILE,
     DEFAULT_ALLOW_WRITES,
     DEFAULT_POLLING_PROFILE,
+    DOMAIN,
+    ISSUE_TELNET_UNAVAILABLE,
     POLLING_PROFILES,
     PUSH_SAFETY_NET_INTERVAL,
 )
 from .coordinator import AvProCoordinator
-from .transport_select import async_select_transport
+from .transport_select import async_select_transport, async_watch_for_telnet, wants_telnet
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,7 +112,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: AvProConfigEntry) -> boo
     entry.runtime_data = AvProRuntime(coordinator=coordinator, client=client)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+    _async_report_degraded(hass, entry, transport)
     return True
+
+
+@callback
+def _async_report_degraded(
+    hass: HomeAssistant, entry: AvProConfigEntry, transport: Transport
+) -> None:
+    """Surface a fallback the user did not ask for, and start watching for recovery.
+
+    Only when the entry wanted telnet and did not get it. Someone who chose ``http`` is getting
+    exactly what they asked for and must not be nagged about it -- a repair issue that appears
+    for a deliberate configuration is noise, and noise is how the useful ones get ignored.
+    """
+    issue_id = f"{ISSUE_TELNET_UNAVAILABLE}_{entry.entry_id}"
+
+    if not wants_telnet(entry) or transport.name != "http":
+        # Covers recovery too: a reload that lands on telnet clears the issue on its way past.
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+        return
+
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_TELNET_UNAVAILABLE,
+        translation_placeholders={"name": entry.title},
+    )
+    entry.async_on_unload(async_watch_for_telnet(hass, entry))
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: AvProConfigEntry) -> bool:

@@ -38,9 +38,23 @@ TRANSPORT_HTTP: Final = "http"
 TRANSPORT_OPTIONS: Final[tuple[str, ...]] = (TRANSPORT_AUTO, TRANSPORT_TELNET, TRANSPORT_HTTP)
 DEFAULT_TRANSPORT: Final = TRANSPORT_AUTO
 
-#: How often to retry telnet after falling back to HTTP. Long, because the reason for falling
-#: back is usually another controller holding the socket, and that does not change by the second.
-TELNET_RETRY_INTERVAL: Final = 300.0
+#: How often to re-check the control socket after falling back to HTTP.
+#:
+#: This was 300 s, on the reasoning that the socket was usually held by another control system and
+#: that does not change by the second. That premise is gone: Home Assistant is the only thing
+#: driving this matrix, so a socket we cannot have is a fault -- a rebooting device, a network
+#: blip, a wedged session -- and every one of those clears in well under five minutes.
+#:
+#: The cost of checking is one connection attempt against a device on the LAN, so the interval is
+#: set by how long a user should sit in a degraded state, not by politeness to a neighbour that no
+#: longer exists.
+TELNET_RETRY_INTERVAL: Final = 60.0
+
+#: Repair-issue id for "telnet was expected and is not available", suffixed per entry.
+#:
+#: A log line was enough when falling back was a legitimate accommodation. Now it is the only
+#: signal that something is wrong, and nobody reads logs they have no reason to open.
+ISSUE_TELNET_UNAVAILABLE: Final = "telnet_unavailable"
 
 #: Safety-net read interval on a pushing transport. Pushes carry normal operation; this exists
 #: only so a missed one cannot leave state stale indefinitely.

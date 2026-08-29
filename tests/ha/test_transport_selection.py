@@ -15,9 +15,11 @@ import asyncio
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 
 from custom_components.ha_avpro_edge.const import (
     CONF_TRANSPORT,
+    DOMAIN,
     TRANSPORT_HTTP,
     TRANSPORT_TELNET,
 )
@@ -238,6 +240,83 @@ async def test_requiring_telnet_means_not_ready_rather_than_silently_degrading(
             tc.CONNECT_TIMEOUT = original
 
     assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+# ---------------------------------------------------------------------------------------------
+# Falling back is a fault, not an accommodation
+# ---------------------------------------------------------------------------------------------
+#
+# The substantive consequence of Home Assistant being the only thing driving this matrix. While
+# another control system legitimately owned the socket, degrading quietly to HTTP was the correct
+# answer and a single log line was proportionate. With nothing else on the device, an unavailable
+# control socket is the only thing that should raise an alarm -- and nobody reads logs they have
+# no reason to open.
+
+
+def _issues(hass: HomeAssistant) -> list[str]:
+    registry = ir.async_get(hass)
+    return [issue_id for (domain, issue_id) in registry.issues if domain == DOMAIN]
+
+
+async def test_an_unexpected_fallback_raises_a_repair_issue(hass: HomeAssistant) -> None:
+    from fake_avpro import FakeMatrix
+
+    import custom_components.ha_avpro_edge.avpro.telnet_client as tc
+
+    async with FakeMatrix(faults={"telnet-busy"}) as fake:
+        original, tc.CONNECT_TIMEOUT = tc.CONNECT_TIMEOUT, 0.5
+        try:
+            entry = await _setup(hass, fake)
+        finally:
+            tc.CONNECT_TIMEOUT = original
+
+        assert entry.runtime_data.coordinator.transport.name == "http"
+        assert _issues(hass) == [f"telnet_unavailable_{entry.entry_id}"]
+
+
+async def test_choosing_http_deliberately_is_not_reported_as_a_fault(
+    hass: HomeAssistant, fake
+) -> None:
+    """A repair issue for a configuration someone chose is noise.
+
+    And noise is how the useful ones come to be ignored.
+    """
+    await _setup(hass, fake, **{CONF_TRANSPORT: TRANSPORT_HTTP})
+    assert _issues(hass) == []
+
+
+async def test_a_healthy_telnet_session_raises_nothing(hass: HomeAssistant, fake) -> None:
+    await _setup(hass, fake)
+    assert _issues(hass) == []
+
+
+async def test_recovering_onto_telnet_clears_the_issue(hass: HomeAssistant, fake) -> None:
+    """The issue must not outlive the fault it describes.
+
+    A repair notice that has to be dismissed by hand once the problem has fixed itself trains
+    people to dismiss them all.
+    """
+    registry = ir.async_get(hass)
+    entry = make_entry(fake.host, telnet_port=fake.telnet_port)
+    entry.add_to_hass(hass)
+
+    # A stale issue from an earlier, degraded run of this same entry.
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"telnet_unavailable_{entry.entry_id}",
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="telnet_unavailable",
+        translation_placeholders={"name": entry.title},
+    )
+    assert registry.async_get_issue(DOMAIN, f"telnet_unavailable_{entry.entry_id}")
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.coordinator.transport.name == "telnet"
+    assert _issues(hass) == []
 
 
 # ---------------------------------------------------------------------------------------------
