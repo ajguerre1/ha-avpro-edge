@@ -304,16 +304,20 @@ def test_backoff_climbs_and_is_jittered_per_client() -> None:
     assert a.backoff_delay() != b.backoff_delay()
 
 
-def test_backoff_resets_after_a_successful_connect() -> None:
-    async def _check() -> None:
-        async with FakeMatrix() as fake:
-            transport = TelnetTransport(f"127.0.0.1:{fake.telnet_port}")
-            for _ in range(5):
-                transport.backoff_delay()
-            await transport.async_connect()
-            try:
-                assert transport.backoff_delay() < 2.0  # back to the bottom of the ladder
-            finally:
-                await transport.async_disconnect()
+async def test_backoff_resets_after_a_successful_connect() -> None:
+    """Async, deliberately.
 
-    asyncio.run(_check())
+    An earlier version was a sync test calling ``asyncio.run``, which creates a loop and then
+    **closes** it. Under pytest-homeassistant-custom-component the loop is session-managed, so
+    closing it broke every test collected afterwards with "no current event loop" -- 59 errors,
+    and only in CI, because that plugin is not installed on the development box.
+    """
+    async with FakeMatrix() as fake:
+        transport = TelnetTransport(f"127.0.0.1:{fake.telnet_port}")
+        for _ in range(5):
+            transport.backoff_delay()
+        await transport.async_connect()
+        try:
+            assert transport.backoff_delay() < 2.0  # back to the bottom of the ladder
+        finally:
+            await transport.async_disconnect()
