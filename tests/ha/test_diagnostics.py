@@ -76,6 +76,37 @@ async def test_it_reports_the_shape_of_the_unique_id_not_the_id(
     assert "AA:BB:CC" not in json.dumps(payload, default=str)
 
 
+async def test_an_unread_port_is_not_reported_as_having_no_signal(hass: HomeAssistant) -> None:
+    """The `bool(None)` defect, second instance -- and this is the worse of the two places.
+
+    Fixing it in the binary sensor left `[bool(s) for s in state.signals]` untouched here, where
+    `None` becomes `False`. A diagnostics dump is written to be pasted into a bug report by
+    someone who will not read it first, so "every port has no signal" is a confident wrong fact
+    handed to whoever is trying to help -- and it points away from the actual problem, which is
+    that signal was never read at all.
+    """
+    from fake_avpro import FakeMatrix
+
+    from .conftest import make_entry
+
+    async with FakeMatrix(faults={"signal-absent"}) as fake:
+        entry = make_entry(fake.host, telnet_port=fake.telnet_port)
+        entry.add_to_hass(hass)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        payload = await async_get_config_entry_diagnostics(hass, entry)
+        assert payload["matrix"]["signal_present"] == [None, None, None, None]
+
+
+async def test_a_measured_port_still_reports_a_boolean(
+    hass: HomeAssistant, fake, loaded_entry
+) -> None:
+    """Guards the fix above: returning `None` unconditionally would pass it too."""
+    payload = await async_get_config_entry_diagnostics(hass, loaded_entry)
+    assert payload["matrix"]["signal_present"] == [True, True, True, True]
+
+
 async def test_it_is_json_serialisable(hass: HomeAssistant, fake, loaded_entry) -> None:
     """Home Assistant serialises this to hand to the browser.
 

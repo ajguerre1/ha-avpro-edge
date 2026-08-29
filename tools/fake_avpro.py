@@ -42,6 +42,15 @@ FAULTS: dict[str, str] = {
         "matching V1.41, where it returns the HTML 'not found' body with status 200. Proves the "
         "capability is detected rather than assumed, in either direction."
     ),
+    "signal-absent": (
+        "INFDivSta.CGI returns the HTML 'not found' body, as a firmware without the tab would. "
+        "Proves two different defences, because the two transports meet it differently. On HTTP "
+        "the capability is withdrawn and no signal entity is created at all -- one that could "
+        "never read is worse than none. On telnet the supplement still declares signal readable, "
+        "since it cannot know the read will fail, so the entities exist with nothing behind "
+        "them: proves an unread port reports **unknown** rather than 'no signal', which is a "
+        "different and confident claim. That second case is where bool(None) was wrong twice."
+    ),
     "no-support": (
         "Every command answers NO SUPPORT. Proves the refusal is recognised rather than parsed "
         "as state."
@@ -495,6 +504,8 @@ class FakeMatrix:
                 return "SysSta=" + "&".join([*enh, *scal, *sgm])
 
             case "INFDivSta.CGI":
+                if "signal-absent" in self.faults:
+                    return None  # the firmware's HTML "not found" body, via _respond_to
                 joined = "&".join(st.signals)
                 # The real device emits a trailing '&'; the fault drops it.
                 return f"INFSta={joined}" + ("" if "no-trailing-amp" in self.faults else "&")

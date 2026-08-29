@@ -340,7 +340,13 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
                 "audio": list(state.series("audio_route")),
                 "bind_mode": state.bind_mode,
             },
-            "signal_present": [bool(s) for s in state.signals],
+            # `None` for a port whose signal has never been read, never `False`. The binary
+            # sensor carried this exact defect -- `bool(None)` is `False`, so an unread port
+            # reported "no signal" rather than "not known" -- and fixing it there left the
+            # identical expression here. This is the worse of the two places for it: a
+            # diagnostics dump is written to be pasted into a bug report by someone who will
+            # not read it first, so a confident wrong fact here misdirects whoever reads it.
+            "signal_present": [None if s is None else bool(s) for s in state.signals],
         }
         if isinstance(self.transport, HttpTransport):
             report["http"] = {

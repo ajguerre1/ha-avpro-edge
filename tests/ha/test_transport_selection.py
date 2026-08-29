@@ -11,11 +11,13 @@ and leave two sources of truth.
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.util import dt as dt_util
 
 from custom_components.ha_avpro_edge.const import (
     CONF_TRANSPORT,
@@ -317,6 +319,92 @@ async def test_recovering_onto_telnet_clears_the_issue(hass: HomeAssistant, fake
 
     assert entry.runtime_data.coordinator.transport.name == "telnet"
     assert _issues(hass) == []
+
+
+# ---------------------------------------------------------------------------------------------
+# Recovering on its own
+# ---------------------------------------------------------------------------------------------
+#
+# The watcher was written and never executed: `async_watch_for_telnet` sat at 0% while the module
+# around it was at 82%. It is recovery-only code, which is the same class as the `connected`
+# attribute that was missing from `HttpTransport` for seven commits -- a path that runs only when
+# something has already gone wrong is exactly the path nothing exercises, and its failure mode is
+# an integration that stays degraded for ever after a matrix reboots once.
+
+
+async def test_the_watcher_stays_quiet_while_the_socket_is_still_held(
+    hass: HomeAssistant,
+) -> None:
+    """A probe that fails must change nothing -- not reload, not clear the issue.
+
+    Reloading on a failed probe would rebuild every entity every minute for as long as the fault
+    lasted, which is worse than the fault.
+    """
+    from fake_avpro import FakeMatrix
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    import custom_components.ha_avpro_edge.avpro.telnet_client as tc
+    from custom_components.ha_avpro_edge.const import TELNET_RETRY_INTERVAL
+
+    async with FakeMatrix(faults={"telnet-busy"}) as fake:
+        original, tc.CONNECT_TIMEOUT = tc.CONNECT_TIMEOUT, 1.0
+        try:
+            entry = await _setup(hass, fake)
+            assert entry.runtime_data.coordinator.transport.name == "http"
+
+            async_fire_time_changed(
+                hass, dt_util.utcnow() + timedelta(seconds=TELNET_RETRY_INTERVAL + 1)
+            )
+            await hass.async_block_till_done()
+
+            assert entry.runtime_data.coordinator.transport.name == "http"
+            assert _issues(hass) == [f"telnet_unavailable_{entry.entry_id}"]
+        finally:
+            tc.CONNECT_TIMEOUT = original
+
+
+async def test_the_watcher_reloads_onto_telnet_once_the_socket_is_free(
+    hass: HomeAssistant,
+) -> None:
+    """The reason the watcher exists.
+
+    Without it a matrix that rebooted once leaves the integration permanently on HTTP -- missing
+    stream, input power, key lock and the LCD timeout -- until somebody notices and reloads by
+    hand. Recovery goes through a reload rather than swapping the transport in place because
+    capabilities decide which entities exist, and gaining four of them is what a reload is for.
+    """
+    from fake_avpro import FakeMatrix
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    import custom_components.ha_avpro_edge.avpro.telnet_client as tc
+    from custom_components.ha_avpro_edge.const import TELNET_RETRY_INTERVAL
+
+    async with FakeMatrix(faults={"telnet-busy"}) as fake:
+        original, tc.CONNECT_TIMEOUT = tc.CONNECT_TIMEOUT, 1.0
+        try:
+            entry = await _setup(hass, fake)
+            assert entry.runtime_data.coordinator.transport.name == "http"
+            assert _issues(hass) == [f"telnet_unavailable_{entry.entry_id}"]
+
+            # Whatever was holding the socket has let go.
+            fake.faults.discard("telnet-busy")
+
+            async_fire_time_changed(
+                hass, dt_util.utcnow() + timedelta(seconds=TELNET_RETRY_INTERVAL + 1)
+            )
+            await hass.async_block_till_done()
+
+            assert entry.runtime_data.coordinator.transport.name == "telnet"
+            # The probe must not still be holding what it went looking for.
+            assert entry.runtime_data.coordinator.transport.connected
+            assert _issues(hass) == [], "the issue outlived the fault it described"
+
+            # The four controls only telnet can read are back, which is the point of reloading
+            # rather than swapping the transport underneath the existing entities.
+            for kind in ("stream", "input_power", "key_lock", "lcd_timeout"):
+                assert entry.runtime_data.coordinator.supports(kind)
+        finally:
+            tc.CONNECT_TIMEOUT = original
 
 
 # ---------------------------------------------------------------------------------------------
