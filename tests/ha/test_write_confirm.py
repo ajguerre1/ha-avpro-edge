@@ -104,7 +104,7 @@ async def test_a_stale_poll_inside_the_window_does_not_revert_the_entity(
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"slow-apply"}, slow_apply_seconds=0.5) as fake:
-        entry = make_entry(fake.host)
+        entry = make_entry(fake.host, telnet_port=fake.telnet_port)
         entry.add_to_hass(hass)
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -136,7 +136,7 @@ async def test_an_ignored_write_settles_on_device_truth_and_is_never_re_sent(
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"never-apply"}) as fake:
-        entry = make_entry(fake.host)
+        entry = make_entry(fake.host, telnet_port=fake.telnet_port)
         entry.add_to_hass(hass)
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()

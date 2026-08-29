@@ -32,8 +32,10 @@ from .avpro.telnet_client import TelnetBusy, TelnetError, TelnetTransport
 from .avpro.transport import Transport
 from .const import (
     CONF_ALLOW_WRITES,
+    CONF_TELNET_PORT,
     CONF_TRANSPORT,
     DEFAULT_ALLOW_WRITES,
+    DEFAULT_TELNET_PORT,
     DEFAULT_TRANSPORT,
     TRANSPORT_HTTP,
     TRANSPORT_TELNET,
@@ -69,8 +71,13 @@ async def async_select_transport(
         _LOGGER.debug("%s: transport forced to HTTP; port 23 will not be touched", entry.title)
         return HttpTransport(client)
 
+    # The host may already carry an HTTP port; telnet has its own. Strip whatever is there and
+    # use the control port, which defaults to 23 but is settable on the device.
+    address = entry.data[CONF_HOST].partition(":")[0]
+    port = entry.data.get(CONF_TELNET_PORT, DEFAULT_TELNET_PORT)
+
     telnet = TelnetTransport(
-        entry.data[CONF_HOST],
+        f"{address}:{port}",
         allow_writes=entry.options.get(CONF_ALLOW_WRITES, DEFAULT_ALLOW_WRITES),
         # Per-entry stream, so two matrices never reconnect in lockstep.
         seed=entry.entry_id,

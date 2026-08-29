@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
 from custom_components.ha_avpro_edge.avpro.protocol import StatusEndpoint
-from custom_components.ha_avpro_edge.const import DOMAIN
+from custom_components.ha_avpro_edge.const import CONF_TRANSPORT, DOMAIN, TRANSPORT_HTTP
 
 from .conftest import make_entry
 
@@ -48,8 +48,16 @@ async def test_the_device_is_registered_with_its_identity(
     assert (dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff") in device.connections
 
 
-async def test_the_opening_poll_reads_everything(hass: HomeAssistant, fake, loaded_entry) -> None:
-    """Entities are created from what the device reports, so the census has to be complete."""
+async def test_the_opening_http_read_covers_every_endpoint(hass: HomeAssistant, fake) -> None:
+    """Entities are created from what the device reports, so the census has to be complete.
+
+    Forces HTTP: on telnet the census is a single GET STA and no endpoint is fetched at all.
+    """
+    entry = make_entry(fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
     requested = {r.split("?")[0] for r in fake.requests}
     assert {e.value for e in StatusEndpoint} <= requested
 
@@ -64,7 +72,9 @@ async def test_an_absent_endpoint_does_not_prevent_setup(hass: HomeAssistant) ->
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"tmds-404"}) as fake:
-        entry = make_entry(fake.host)
+        entry = make_entry(
+            fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP}
+        )
         entry.add_to_hass(hass)
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -77,7 +87,9 @@ async def test_an_absent_endpoint_is_recorded_and_never_re_requested(
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"tmds-404"}) as fake:
-        entry = make_entry(fake.host)
+        entry = make_entry(
+            fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP}
+        )
         entry.add_to_hass(hass)
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -98,7 +110,9 @@ async def test_entities_are_created_despite_the_missing_endpoint(hass: HomeAssis
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"tmds-404"}) as fake:
-        entry = make_entry(fake.host)
+        entry = make_entry(
+            fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP}
+        )
         entry.add_to_hass(hass)
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -115,7 +129,9 @@ async def test_an_eight_port_unit_gets_eight_outputs(hass: HomeAssistant) -> Non
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"other-model"}) as fake:
-        entry = make_entry(fake.host)
+        entry = make_entry(
+            fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP}
+        )
         entry.add_to_hass(hass)
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -128,8 +144,15 @@ async def test_an_eight_port_unit_gets_eight_outputs(hass: HomeAssistant) -> Non
 # ---------------------------------------------------------------------------------------------
 
 
-async def test_setting_up_never_touches_the_telnet_port(
+async def test_setting_up_does_use_the_control_socket_by_default(
     hass: HomeAssistant, fake, loaded_entry
 ) -> None:
-    """On real hardware that port has one slot and it belongs to the control system."""
-    assert fake.telnet_connections == 0
+    """This assertion used to be its own opposite.
+
+    While the integration was HTTP-only, any telnet connection was a bug. Telnet is now the
+    primary transport, so connecting is correct -- and the assertion that the socket is left
+    alone moved to where it still holds: under the http setting, in
+    tests/ha/test_transport_selection.py.
+    """
+    assert fake.telnet_connections >= 1
+    assert loaded_entry.runtime_data.coordinator.transport.name == "telnet"

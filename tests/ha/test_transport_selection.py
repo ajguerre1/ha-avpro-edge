@@ -26,7 +26,7 @@ pytestmark = pytest.mark.enable_socket
 
 
 async def _setup(hass: HomeAssistant, fake, **options):
-    entry = make_entry(fake.host, **options)
+    entry = make_entry(fake.host, telnet_port=fake.telnet_port, **options)
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -153,7 +153,9 @@ async def test_requiring_telnet_means_not_ready_rather_than_silently_degrading(
     async with FakeMatrix(faults={"telnet-busy"}) as fake:
         original, tc.CONNECT_TIMEOUT = tc.CONNECT_TIMEOUT, 0.5
         try:
-            entry = make_entry(fake.host, **{CONF_TRANSPORT: TRANSPORT_TELNET})
+            entry = make_entry(
+                fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_TELNET}
+            )
             entry.add_to_hass(hass)
             assert not await hass.config_entries.async_setup(entry.entry_id)
             await hass.async_block_till_done()

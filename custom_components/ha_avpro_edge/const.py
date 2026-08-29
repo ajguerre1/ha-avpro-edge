@@ -19,6 +19,12 @@ CONF_ALLOW_WRITES: Final = "allow_writes"
 CONF_POLLING_PROFILE: Final = "polling_profile"
 CONF_TRANSPORT: Final = "transport"
 
+#: The device's control port. Settable on the unit itself with ``SET TIP`` and reported back
+#: in the network status, so an installation that has moved it off 23 is a real configuration
+#: rather than a hypothetical. Stored on the entry so it survives a restart.
+CONF_TELNET_PORT: Final = "telnet_port"
+DEFAULT_TELNET_PORT: Final = 23
+
 #: How the integration reaches the matrix.
 #:
 #: Telnet is primary: it pushes changes within ~300-400 ms, reads the whole device in one
