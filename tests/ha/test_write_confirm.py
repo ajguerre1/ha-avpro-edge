@@ -20,13 +20,24 @@ import asyncio
 import pytest
 from homeassistant.core import Event, HomeAssistant, callback
 
-from custom_components.ha_avpro_edge.const import KEY_VIDEO_ROUTE, port_key
+from custom_components.ha_avpro_edge.const import (
+    CONF_TRANSPORT,
+    KEY_VIDEO_ROUTE,
+    TRANSPORT_HTTP,
+    port_key,
+)
 
 from .conftest import make_entry
 
 pytestmark = pytest.mark.enable_socket
 
 ENTITY = "media_player.ac_mx44_auhd_output_1"
+
+#: These pin the write-then-confirm dance, which is transport-agnostic by design. They are run
+#: over HTTP because that is the wire whose requests are individually countable -- the assertions
+#: are about how many commands are issued, and one HTTP request maps to one command. The same
+#: semantics over telnet are covered in test_transport_selection.py.
+HTTP_ONLY = {CONF_TRANSPORT: TRANSPORT_HTTP}
 
 
 def _count_changes(hass: HomeAssistant, entity_id: str) -> list[Event]:
@@ -43,8 +54,9 @@ def _count_changes(hass: HomeAssistant, entity_id: str) -> list[Event]:
 
 
 async def test_a_write_produces_exactly_one_state_change(
-    hass: HomeAssistant, fake, loaded_entry
+    hass: HomeAssistant, fake, http_entry
 ) -> None:
+    """T-W1. The optimistic publish, and nothing else."""
     events = _count_changes(hass, ENTITY)
 
     await hass.services.async_call(
@@ -60,10 +72,10 @@ async def test_a_write_produces_exactly_one_state_change(
 
 
 async def test_the_confirming_poll_writes_no_further_state(
-    hass: HomeAssistant, fake, loaded_entry
+    hass: HomeAssistant, fake, http_entry
 ) -> None:
-    """The overlay already published the value, so the poll that agrees must be silent."""
-    coordinator = loaded_entry.runtime_data.coordinator
+    """T-W2. The overlay already published the value, so the poll that agrees must be silent."""
+    coordinator = http_entry.runtime_data.coordinator
 
     await hass.services.async_call(
         "media_player",
@@ -81,9 +93,9 @@ async def test_the_confirming_poll_writes_no_further_state(
     assert hass.states.get(ENTITY).attributes["source"] == "SrcC"
 
 
-async def test_a_quiet_poll_writes_nothing_at_all(hass: HomeAssistant, fake, loaded_entry) -> None:
-    """The single largest defence against fanning noise out to fifty panels."""
-    coordinator = loaded_entry.runtime_data.coordinator
+async def test_a_quiet_poll_writes_nothing_at_all(hass: HomeAssistant, fake, http_entry) -> None:
+    """T-W5. The single largest defence against fanning noise out to fifty panels."""
+    coordinator = http_entry.runtime_data.coordinator
     events = _count_changes(hass, ENTITY)
 
     for _ in range(5):
@@ -96,7 +108,7 @@ async def test_a_quiet_poll_writes_nothing_at_all(hass: HomeAssistant, fake, loa
 async def test_a_stale_poll_inside_the_window_does_not_revert_the_entity(
     hass: HomeAssistant,
 ) -> None:
-    """The KEEP rule, at the Home Assistant layer.
+    """T-W3. The KEEP rule, at the Home Assistant layer.
 
     With slow-apply the matrix accepts the command but does not show it yet. If the overlay
     cleared on that reading, the entity would visibly flick back to the old source.
@@ -104,7 +116,7 @@ async def test_a_stale_poll_inside_the_window_does_not_revert_the_entity(
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"slow-apply"}, slow_apply_seconds=0.5) as fake:
-        entry = make_entry(fake.host)
+        entry = make_entry(fake.host, telnet_port=fake.telnet_port, **HTTP_ONLY)
         entry.add_to_hass(hass)
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -132,11 +144,11 @@ async def test_a_stale_poll_inside_the_window_does_not_revert_the_entity(
 async def test_an_ignored_write_settles_on_device_truth_and_is_never_re_sent(
     hass: HomeAssistant,
 ) -> None:
-    """Two controllers re-asserting at each other is the failure this prevents."""
+    """T-W4. Two controllers re-asserting at each other is the failure this prevents."""
     from fake_avpro import FakeMatrix
 
     async with FakeMatrix(faults={"never-apply"}) as fake:
-        entry = make_entry(fake.host)
+        entry = make_entry(fake.host, telnet_port=fake.telnet_port, **HTTP_ONLY)
         entry.add_to_hass(hass)
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -166,10 +178,10 @@ async def test_an_ignored_write_settles_on_device_truth_and_is_never_re_sent(
 
 
 async def test_setting_a_value_it_already_has_sends_nothing(
-    hass: HomeAssistant, fake, loaded_entry
+    hass: HomeAssistant, fake, http_entry
 ) -> None:
     """A scene setting four outputs to the same input must not write on every activation."""
-    coordinator = loaded_entry.runtime_data.coordinator
+    coordinator = http_entry.runtime_data.coordinator
     key = port_key(KEY_VIDEO_ROUTE, 1)
     current = coordinator.matrix.video_routes[0]
 
@@ -180,9 +192,9 @@ async def test_setting_a_value_it_already_has_sends_nothing(
     assert [r for r in fake.requests if r.startswith("TimSendCmd")] == []
 
 
-async def test_an_out_of_band_change_is_picked_up(hass: HomeAssistant, fake, loaded_entry) -> None:
+async def test_an_out_of_band_change_is_picked_up(hass: HomeAssistant, fake, http_entry) -> None:
     """A change made by another control system looks like any other change: the value moved."""
-    coordinator = loaded_entry.runtime_data.coordinator
+    coordinator = http_entry.runtime_data.coordinator
     events = _count_changes(hass, ENTITY)
 
     fake.state.video_routes[0] = 4
@@ -194,9 +206,9 @@ async def test_an_out_of_band_change_is_picked_up(hass: HomeAssistant, fake, loa
 
 
 async def test_route_all_uses_one_request_for_every_output(
-    hass: HomeAssistant, fake, loaded_entry
+    hass: HomeAssistant, fake, http_entry
 ) -> None:
-    coordinator = loaded_entry.runtime_data.coordinator
+    coordinator = http_entry.runtime_data.coordinator
 
     fake.requests.clear()
     await coordinator.async_route_all(2)
@@ -204,3 +216,42 @@ async def test_route_all_uses_one_request_for_every_output(
 
     assert len([r for r in fake.requests if r.startswith("TimSendCmd")]) == 1
     assert fake.state.video_routes == [2, 2, 2, 2]
+
+
+# ---------------------------------------------------------------------------------------------
+# T-N11 -- shutdown drops the overlay
+# ---------------------------------------------------------------------------------------------
+
+
+async def test_shutdown_drops_the_pending_overlay(hass: HomeAssistant) -> None:
+    """T-N11. An optimistic value that outlives its connection is a claim about nothing.
+
+    The overlay only means "commanded, not yet confirmed" -- and confirmation can only arrive over
+    the transport that carried the command. Once that is gone, so is any prospect of the value
+    being either confirmed or corrected, and the expiry watchdog has been cancelled along with it.
+    Keeping it would leave the entity asserting a value nothing will ever check, until something
+    happens to reload the entry.
+
+    Uses ``never-apply`` so the write is guaranteed to still be outstanding at shutdown; against
+    the ordinary fake the confirming read can land first and the overlay would be legitimately
+    empty, which would pass while asserting nothing.
+    """
+    from fake_avpro import FakeMatrix
+
+    async with FakeMatrix(faults={"never-apply"}) as fake:
+        entry = make_entry(fake.host, telnet_port=fake.telnet_port, **HTTP_ONLY)
+        entry.add_to_hass(hass)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        coordinator = entry.runtime_data.coordinator
+        key = port_key(KEY_VIDEO_ROUTE, 1)
+
+        await coordinator.async_set(key, 3)
+        await hass.async_block_till_done()
+        assert key in coordinator.pending, "nothing was pending; the test proves nothing"
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        assert key not in coordinator.pending

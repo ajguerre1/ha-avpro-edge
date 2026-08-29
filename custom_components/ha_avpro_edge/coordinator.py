@@ -94,8 +94,12 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
     # -- lifecycle -----------------------------------------------------------------------
 
     async def async_prepare(self) -> None:
-        """Connect and subscribe. Safe on a transport that does neither."""
-        await self.transport.async_connect()
+        """Subscribe to whatever the transport volunteers.
+
+        Connecting is the selector's job, not this one's -- it has to connect in order to know
+        whether telnet is even available, and connecting twice would take the socket, drop it and
+        take it again.
+        """
         self._unsubscribe = self.transport.subscribe(self._on_push)
 
     async def async_shutdown(self) -> None:
@@ -166,6 +170,17 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
             self._unavailable_logged = True
 
     # -- state ---------------------------------------------------------------------------
+
+    def seed(self, report: DeviceReport) -> None:
+        """Fold in facts the active transport cannot supply for itself.
+
+        Telnet reads 45 values in one command but has no notion of port names, model or
+        firmware -- those exist only in the HTTP interface's identity body. Supplying them from
+        the other wire is not hedging: it is the documented exception for an operation only HTTP
+        has, exactly like renaming. Without it the source picker would read "Input 1" where the
+        matrix itself says something meaningful.
+        """
+        self._state = st.apply(self._state, report)
 
     @property
     def matrix(self) -> MatrixState:

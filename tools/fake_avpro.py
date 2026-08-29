@@ -87,6 +87,27 @@ FAULTS: dict[str, str] = {
         "Reports an 8x8 model with eight routes. Proves port counts are derived from the device "
         "rather than hardcoded."
     ),
+    "telnet-busy": (
+        "The telnet listener accepts a connection and then never speaks, as the real unit does "
+        "when its single control slot is already held. Proves the client reports TelnetBusy and "
+        "the caller falls back to HTTP instead of failing setup."
+    ),
+    "telnet-refused": (
+        "Nothing listens on the telnet port at all. Proves an outright refusal is distinguished "
+        "from a taken slot -- one means fall back, the other means the device is not there."
+    ),
+    "telnet-drops-idle": (
+        "The telnet connection is closed after a few seconds of quiet. Proves the client notices "
+        "and does not sit on a dead socket believing it is connected."
+    ),
+    "telnet-garbled": (
+        "A line of nonsense is injected into the telnet stream. Proves one unparseable line "
+        "cannot corrupt the values around it."
+    ),
+    "telnet-no-push": (
+        "Changes are applied but never announced on telnet. Proves the periodic GET STA safety "
+        "net catches what a missed push would otherwise leave stale."
+    ),
 }
 
 _NOT_FOUND_BODY = "<HTML>\n<BODY>\nSorry, the page you requested was not found.\n</BODY>\n</HTML>\n"
@@ -111,6 +132,12 @@ class MatrixModel:
     enhancement: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
     test_pattern: list[bool] = field(default_factory=lambda: [False] * 4)
     edid: list[str] = field(default_factory=lambda: ["EDIDU1"] * 4)
+    #: Telnet-only state. HTTP has no status endpoint for any of these, which is why the two
+    #: transports are not interchangeable.
+    stream: list[bool] = field(default_factory=lambda: [True] * 4)
+    input_power: list[bool] = field(default_factory=lambda: [True] * 4)
+    #: EDID as telnet numbers it, 0-32. 30 is USER1_EDID, the same EDID HTTP calls EDIDU1.
+    edid_index: list[int] = field(default_factory=lambda: [30] * 4)
     signals: list[str] = field(
         default_factory=lambda: ["3840X2160P@60HZ YUV420", "1920X1080P@60HZ", "", "1920X1080P@60HZ"]
     )
@@ -130,6 +157,9 @@ class MatrixModel:
         self.test_pattern = [False] * ports
         self.edid = ["EDIDU1"] * ports
         self.signals = [""] * ports
+        self.stream = [True] * ports
+        self.input_power = [True] * ports
+        self.edid_index = [30] * ports
 
 
 class FakeMatrix:
@@ -156,8 +186,16 @@ class FakeMatrix:
         #: Every request path served, in order. Tests assert on request *counts* to prove the
         #: poll cadence and that a write issues exactly one request.
         self.requests: list[str] = []
-        #: Set if anything ever connected to the telnet tripwire. See ``_start_tripwire``.
+        #: How many telnet connections have been accepted. Still counted now that telnet is a
+        #: real transport, because "nothing connected under the http setting" remains an
+        #: assertion that has to be checkable.
         self.telnet_connections = 0
+        #: Every telnet command received, in order.
+        self.telnet_commands: list[str] = []
+        self._telnet_writer: Any = None
+        #: Live telnet handler tasks. Cancelled on stop() -- a handler parked on the
+        #: 'slot is held' sleep would otherwise make wait_closed() block forever.
+        self._telnet_tasks: set[Any] = set()
         #: Highest number of requests in flight at once, measured at the wire. A client whose
         #: transport lock works keeps this at 1 no matter how many callers gather on it.
         self.concurrent_peak = 0
@@ -213,36 +251,150 @@ class FakeMatrix:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         self._pending_apply.clear()
+        for task in list(self._telnet_tasks):
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
+        self._telnet_tasks.clear()
         if self._tripwire is not None:
             self._tripwire.close()
-            await self._tripwire.wait_closed()
+            with contextlib.suppress(TimeoutError, Exception):
+                await asyncio.wait_for(self._tripwire.wait_closed(), timeout=2.0)
             self._tripwire = None
         if self._runner is not None:
             await self._runner.cleanup()
             self._runner = None
 
     async def _start_tripwire(self) -> None:
-        """Listen on an ephemeral port standing in for telnet and record any connection.
+        """Serve the telnet command set on an ephemeral port.
 
-        This is a trap, not a fault. The integration must never open a telnet session, because
-        on real hardware that port has one slot and it belongs to the house's control system.
-        A unit test can assert ``fake.telnet_connections == 0``; ``tests/test_no_telnet.py``
-        makes the stronger, static guarantee.
+        This used to be a pure tripwire, because the integration was HTTP-only and any telnet
+        connection was a bug. Telnet is now the primary transport, so the port serves the real
+        protocol -- but the connection counter stays, because "nothing connected under the http
+        setting" is still an assertion that has to be checkable.
+
+        One client at a time, as the real unit enforces.
         """
+        if "telnet-refused" in self.faults:
+            return
 
-        async def _on_connect(_reader: Any, writer: Any) -> None:
-            self.telnet_connections += 1
-            _LOGGER.error("TRIPWIRE: something connected to the telnet port")
-            writer.close()
-
-        self._tripwire = await asyncio.start_server(_on_connect, "127.0.0.1", 0)
+        self._tripwire = await asyncio.start_server(self._serve_telnet, "127.0.0.1", 0)
 
     @property
     def tripwire_port(self) -> int | None:
-        """The port the telnet tripwire is listening on, if enabled."""
+        """The telnet port, if the listener is running."""
         if self._tripwire is None:
             return None
         return self._tripwire.sockets[0].getsockname()[1]
+
+    #: Alias reading the way it now behaves.
+    @property
+    def telnet_port(self) -> int | None:
+        return self.tripwire_port
+
+    async def _serve_telnet(self, reader: Any, writer: Any) -> None:
+        """One telnet session: answer GET STA, apply SET, and push on change."""
+        self.telnet_connections += 1
+        task = asyncio.current_task()
+        if task is not None:
+            self._telnet_tasks.add(task)
+
+        if self._telnet_writer is not None:
+            # The real unit accepts the TCP connection and then never speaks while its single
+            # slot is held, which is why a busy socket looks like a timeout rather than a refusal.
+            await asyncio.sleep(3600)
+            return
+        if "telnet-busy" in self.faults:
+            await asyncio.sleep(3600)
+            return
+
+        self._telnet_writer = writer
+        try:
+            while True:
+                timeout = 2.0 if "telnet-drops-idle" in self.faults else None
+                try:
+                    line = await asyncio.wait_for(reader.readline(), timeout=timeout)
+                except TimeoutError:
+                    return  # the drops-idle fault
+                if not line:
+                    return
+
+                command = line.decode("ascii", errors="replace").strip()
+                self.telnet_commands.append(command)
+
+                if command.upper() == "GET STA":
+                    await self._telnet_send(self.telnet_status())
+                elif command.upper().startswith("SET "):
+                    changed = self._apply_telnet(command)
+                    if changed and "telnet-no-push" not in self.faults:
+                        await self._telnet_send(changed)
+        except (ConnectionError, OSError):  # pragma: no cover - client vanished
+            return
+        finally:
+            self._telnet_writer = None
+            with contextlib.suppress(Exception):
+                writer.close()
+
+    async def _telnet_send(self, text: str) -> None:
+        writer = self._telnet_writer
+        if writer is None:
+            return
+        if "telnet-garbled" in self.faults:
+            text = "@@@ not a line the grammar knows @@@\r\n" + text
+        writer.write(text.encode("ascii", "replace"))
+        with contextlib.suppress(Exception):
+            await writer.drain()
+
+    def telnet_status(self) -> str:
+        """A GET STA dump, in the real unit's order and spelling."""
+        st = self.state
+        n = st.ports
+        lines = ["ADDR 00", "LCD ON T2", "KEY LOCK OFF"]
+        lines += [f"OUT{i + 1} VS IN{st.video_routes[i]}" for i in range(n)]
+        lines += [f"OUT{i + 1} VIDEO {st.scaler[i]}" for i in range(n)]
+        lines += [f"OUT{i + 1} EXADL PH{st.audio_delay[i]}" for i in range(n)]
+        lines += [f"OUT{i + 1} EXA {'EN' if st.extracted_audio[i] else 'DIS'}" for i in range(n)]
+        lines += [f"EXAMX MODE{st.bind_mode}"]
+        lines += [f"OUT{i + 1} AS IN{st.audio_routes[i]}" for i in range(n)]
+        lines += [f"OUT{i + 1} IMAGE ENH {st.enhancement[i]}" for i in range(n)]
+        lines += [f"OUT{i + 1} STREAM {'ON' if st.stream[i] else 'OFF'}" for i in range(n)]
+        lines += [f"OUT{i + 1} SGM {'EN' if st.test_pattern[i] else 'DIS'}" for i in range(n)]
+        lines += [f"IN{i + 1} TMDS {'ON' if st.input_power[i] else 'OFF'}" for i in range(n)]
+        lines += [f"IN{i + 1} EDID {st.edid_index[i]}" for i in range(n)]
+        lines += [f"MAC {st.mac.replace(':', '.').lower()}"]
+        return "".join(f"{line}\r\n" for line in lines)
+
+    def _apply_telnet(self, command: str) -> str:
+        """Apply one SET command. Returns the line the device would announce, or ''."""
+        st = self.state
+
+        if m := re.fullmatch(r"SET OUT(\d+) VS IN(\d+)", command, re.I):
+            out, src = int(m[1]), int(m[2])
+            if 1 <= out <= st.ports:
+                st.video_routes[out - 1] = src
+                return f"OUT{out} VS IN{src}\r\n"
+        elif m := re.fullmatch(r"SET OUT(\d+) STREAM (ON|OFF)", command, re.I):
+            out = int(m[1])
+            if 1 <= out <= st.ports:
+                st.stream[out - 1] = m[2].upper() == "ON"
+                return f"OUT{out} STREAM {m[2].upper()}\r\n"
+        elif m := re.fullmatch(r"SET IN(\d+) TMDS (ON|OFF)", command, re.I):
+            src = int(m[1])
+            if 1 <= src <= st.ports:
+                st.input_power[src - 1] = m[2].upper() == "ON"
+                return f"IN{src} TMDS {m[2].upper()}\r\n"
+        elif m := re.fullmatch(r"SET OUT(\d+) AS IN(\d+)", command, re.I):
+            out = int(m[1])
+            if 1 <= out <= st.ports:
+                st.audio_routes[out - 1] = int(m[2])
+                return f"OUT{out} AS IN{m[2]}\r\n"
+        elif m := re.fullmatch(r"SET KEY LOCK (ON|OFF)", command, re.I):
+            return f"KEY LOCK {m[1].upper()}\r\n"
+        return ""
+
+    async def push_telnet(self, text: str) -> None:
+        """Announce something unprompted, as the device does every 8-16 s."""
+        await self._telnet_send(text)
 
     # -- request handling ----------------------------------------------------------------
 

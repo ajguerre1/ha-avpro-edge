@@ -39,10 +39,12 @@
       "init": {
         "title": "AVPro Edge options",
         "data": {
+          "transport": "Connection method",
           "polling_profile": "Polling profile",
           "allow_writes": "Allow changes to the matrix"
         },
         "data_description": {
+          "transport": "Telnet is the default: the matrix pushes changes to Home Assistant within about a third of a second, and it is the only connection that can read output on/off, input power, key lock and the display timeout. It uses the matrix's single control socket, so choose HTTP only if another control system needs that socket.",
           "polling_profile": "How often the matrix is checked for changes made elsewhere, such as from its front panel or another control system.",
           "allow_writes": "Turn this off to make the integration read-only. Useful while you watch it run alongside an existing control system."
         }
@@ -55,6 +57,13 @@
         "responsive": "Responsive (every 3 seconds)",
         "balanced": "Balanced (every 5 seconds)",
         "gentle": "Gentle (every 15 seconds)"
+      }
+    },
+    "transport": {
+      "options": {
+        "auto": "Telnet, falling back to HTTP (recommended)",
+        "telnet": "Telnet only",
+        "http": "HTTP only — never use the control socket"
       }
     }
   },
@@ -192,6 +201,12 @@
     },
     "invalid_port_name": {
       "message": "That port name cannot be used: {reason}."
+    }
+  },
+  "issues": {
+    "telnet_unavailable": {
+      "title": "{name}: the control socket is unavailable",
+      "description": "Home Assistant could not open the telnet control port on {name} and is running on the HTTP interface instead.\n\nThe matrix is still controllable, but output stream state, input power, key lock and the LCD timeout cannot be read on this wire, so those controls are missing, and changes are polled rather than pushed.\n\nNothing else should be holding this port. The usual causes are a matrix that is rebooting, a network interruption, or a control session left open by another system. Home Assistant re-checks every minute and reloads by itself once the port is free; this message will disappear on its own when it does."
     }
   }
 }

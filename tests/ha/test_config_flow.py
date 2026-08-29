@@ -12,7 +12,9 @@ from custom_components.ha_avpro_edge.config_flow import normalise_host
 from custom_components.ha_avpro_edge.const import (
     CONF_ALLOW_WRITES,
     CONF_POLLING_PROFILE,
+    CONF_TRANSPORT,
     DOMAIN,
+    TRANSPORT_HTTP,
 )
 
 from .conftest import make_entry
@@ -194,29 +196,45 @@ async def test_reconfigure_refuses_a_different_matrix(hass: HomeAssistant, fake)
 
 
 async def test_options_round_trip(hass: HomeAssistant, loaded_entry) -> None:
+    """T-D1. Every option submitted comes back out, the transport included."""
     result = await hass.config_entries.options.async_init(loaded_entry.entry_id)
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {CONF_POLLING_PROFILE: "gentle", CONF_ALLOW_WRITES: False},
+        {
+            CONF_TRANSPORT: TRANSPORT_HTTP,
+            CONF_POLLING_PROFILE: "gentle",
+            CONF_ALLOW_WRITES: False,
+        },
     )
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    # The transport was previously submitted and never asserted. It is the one option with a
+    # physical consequence -- it decides whether the house's single control socket gets taken --
+    # so a silent failure to store it is the last one anybody would want.
+    assert loaded_entry.options[CONF_TRANSPORT] == TRANSPORT_HTTP
     assert loaded_entry.options[CONF_POLLING_PROFILE] == "gentle"
     assert loaded_entry.options[CONF_ALLOW_WRITES] is False
 
 
-async def test_changing_options_does_not_reload_the_entry(
-    hass: HomeAssistant, loaded_entry
-) -> None:
-    """Reloading would blank every entity to change a number, which on wall panels is visible."""
+async def test_changing_options_does_not_reload_the_entry(hass: HomeAssistant, http_entry) -> None:
+    """Reloading would blank every entity to change a number, which on wall panels is visible.
+
+    Uses the HTTP entry because the polling profile only applies to a transport that polls: a
+    pushing one is deliberately left on the slow safety-net interval instead.
+    """
+    loaded_entry = http_entry
     coordinator = loaded_entry.runtime_data.coordinator
 
     result = await hass.config_entries.options.async_init(loaded_entry.entry_id)
     await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {CONF_POLLING_PROFILE: "gentle", CONF_ALLOW_WRITES: False},
+        {
+            CONF_TRANSPORT: TRANSPORT_HTTP,
+            CONF_POLLING_PROFILE: "gentle",
+            CONF_ALLOW_WRITES: False,
+        },
     )
     await hass.async_block_till_done()
 

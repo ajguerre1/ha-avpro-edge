@@ -17,6 +17,48 @@ MANUFACTURER: Final = "AVPro Edge"
 
 CONF_ALLOW_WRITES: Final = "allow_writes"
 CONF_POLLING_PROFILE: Final = "polling_profile"
+CONF_TRANSPORT: Final = "transport"
+
+#: The device's control port. Settable on the unit itself with ``SET TIP`` and reported back
+#: in the network status, so an installation that has moved it off 23 is a real configuration
+#: rather than a hypothetical. Stored on the entry so it survives a restart.
+CONF_TELNET_PORT: Final = "telnet_port"
+DEFAULT_TELNET_PORT: Final = 23
+
+#: How the integration reaches the matrix.
+#:
+#: Telnet is primary: it pushes changes within ~300-400 ms, reads the whole device in one
+#: command, and is the only wire that can see output stream state, input power, key lock and the
+#: LCD timeout. HTTP is the exception -- used when telnet is unavailable, for the one operation
+#: only it has (renaming ports), or when the user has asked for it.
+TRANSPORT_AUTO: Final = "auto"
+TRANSPORT_TELNET: Final = "telnet"
+TRANSPORT_HTTP: Final = "http"
+
+TRANSPORT_OPTIONS: Final[tuple[str, ...]] = (TRANSPORT_AUTO, TRANSPORT_TELNET, TRANSPORT_HTTP)
+DEFAULT_TRANSPORT: Final = TRANSPORT_AUTO
+
+#: How often to re-check the control socket after falling back to HTTP.
+#:
+#: This was 300 s, on the reasoning that the socket was usually held by another control system and
+#: that does not change by the second. That premise is gone: Home Assistant is the only thing
+#: driving this matrix, so a socket we cannot have is a fault -- a rebooting device, a network
+#: blip, a wedged session -- and every one of those clears in well under five minutes.
+#:
+#: The cost of checking is one connection attempt against a device on the LAN, so the interval is
+#: set by how long a user should sit in a degraded state, not by politeness to a neighbour that no
+#: longer exists.
+TELNET_RETRY_INTERVAL: Final = 60.0
+
+#: Repair-issue id for "telnet was expected and is not available", suffixed per entry.
+#:
+#: A log line was enough when falling back was a legitimate accommodation. Now it is the only
+#: signal that something is wrong, and nobody reads logs they have no reason to open.
+ISSUE_TELNET_UNAVAILABLE: Final = "telnet_unavailable"
+
+#: Safety-net read interval on a pushing transport. Pushes carry normal operation; this exists
+#: only so a missed one cannot leave state stale indefinitely.
+PUSH_SAFETY_NET_INTERVAL: Final = 60
 
 #: Seconds between polls for each profile. "Balanced" matches the cadence the unit's own web UI
 #: uses for the tab it is displaying, which is the most defensible default available: it is what

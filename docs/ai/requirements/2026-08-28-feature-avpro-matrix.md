@@ -31,6 +31,38 @@ Homes with this class of hardware usually already have a control system (Control
 that may want the telnet socket. Taking it is not reversible from the other system's point of
 view: it simply cannot connect.
 
+### Amended 2026-08-29 — Home Assistant is the sole controller
+
+**This integration exists so the Control4 system can be decommissioned.** That was not stated when
+these requirements were written, and it revises the premise above rather than adding to it.
+
+The design was built to *coexist* with a control system that owned the matrix. It should instead
+assume nothing else drives the device. Confirmed by the owner, and independently consistent with
+the evidence: 20 connection probes found the control socket free, and both signal-probe rounds
+connected immediately.
+
+What this changes:
+
+- **A busy or unreachable control socket is a fault, not a neighbour.** Silent fallback to HTTP
+  made sense when another system had a legitimate claim; now it hides the one situation that
+  should raise an alarm. Fallback stays — the matrix must remain controllable — but it raises a
+  repair issue and retries quickly rather than every five minutes.
+- **Live write testing is unblocked.** The owner-gate on the `T-L` scenarios existed because a
+  route change could collide with a Control4 scene. It reduces to the ordinary rule that toggling
+  an output's stream blanks a real display.
+- **Scope grows to Control4 parity.** For the matrix to lose its dependency, this integration must
+  do what that driver does. Its whole command surface is covered or planned except **Input Hot
+  Plug Reset**, which is added.
+
+What this deliberately does **not** change, because none of it was ever about Control4:
+
+- **C1**, the one-client telnet limit, is a property of the hardware.
+- The write overlay, the KEEP rule and `WRITE_SETTLE_WINDOW` bridge the matrix's own apply latency
+  (**C12**, 25–404 ms), measured with no other controller involved.
+- "Never re-assert a disputed write" still holds, and **G3** still matters. The matrix has a
+  **front panel** — which is what key lock exists for — and its **own web page**, and both change
+  routing without Home Assistant. "Another controller" is re-attributed, not removed.
+
 ## Goals & Objectives
 
 **What do we want to achieve?**
@@ -44,6 +76,7 @@ view: it simply cannot connect.
 | G3 | Changes made *outside* Home Assistant — front panel, web page, another control system — are reflected promptly |
 | G4 | Every feature the hardware exposes is available, not only routing |
 | G5 | The integration can coexist with an existing control system, or be told to get out of its way |
+| G6 | *(2026-08-29)* The matrix has no remaining dependency on Control4 — everything that driver does, this does |
 
 **Secondary goals**
 
@@ -57,7 +90,9 @@ view: it simply cannot connect.
 - Factory reset (`SET RST`) for the same reason.
 - Writing EDID binary data to user buffers (`SET INx EDID Uy DATAz`). Reading and selecting an
   EDID is in scope; authoring one is not.
-- Control4 integration of any kind. The two systems coexist on the network; they do not talk.
+- Talking to Control4, or reading its configuration. The goal is to make it **removable**, not to
+  integrate with it: the two systems never exchange anything. Matching the *function set* of its
+  AVPro driver is in scope as of 2026-08-29; matching its internals is not.
 
 ## User Stories & Use Cases
 
@@ -136,7 +171,7 @@ optional. R19 is only reachable over HTTP.
 | # | Constraint | Evidence |
 |---|---|---|
 | C1 | The telnet server accepts **one client at a time** | 4 simultaneous connections: 1 succeeded, 3 timed out. Reproduced twice |
-| C2 | The telnet socket is **currently unoccupied** | 20 connection probes over 60 s, all succeeded |
+| C2 | The telnet socket is **ours**, not merely currently free | 20 connection probes over 60 s all succeeded; both 2026-08-29 signal probes connected immediately; owner confirms Control4 is effectively decommissioned. Originally recorded as "currently unoccupied" — an incidental observation. It is now a design premise |
 | C3 | Telnet pushes changes from any source within ~300–400 ms | Route changed over HTTP at t=8.1 s, telnet reported it at t=8.4 s |
 | C4 | Telnet also re-sends full routing every ~8–16 s | Observed during a 40 s idle hold |
 | C5 | The telnet socket survives at least 40 s idle | Held open, no drop, no keepalive sent |

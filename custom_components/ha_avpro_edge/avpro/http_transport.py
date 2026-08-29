@@ -66,6 +66,11 @@ class HttpTransport:
         return self._client.host
 
     @property
+    def connected(self) -> bool:
+        """Always true. HTTP holds nothing, so there is no state to be in."""
+        return True
+
+    @property
     def capabilities(self) -> TransportCapabilities:
         """What this wire offers, less anything this firmware turned out to lack."""
         missing: set[str] = set()

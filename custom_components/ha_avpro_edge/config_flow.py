@@ -35,10 +35,13 @@ from .avpro.state import MatrixState, apply
 from .const import (
     CONF_ALLOW_WRITES,
     CONF_POLLING_PROFILE,
+    CONF_TRANSPORT,
     DEFAULT_ALLOW_WRITES,
     DEFAULT_POLLING_PROFILE,
+    DEFAULT_TRANSPORT,
     DOMAIN,
     POLLING_PROFILES,
+    TRANSPORT_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -141,6 +144,16 @@ def _unique_id(state: MatrixState, host: str) -> str:
 def _options_schema(current: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
+            vol.Required(
+                CONF_TRANSPORT,
+                default=current.get(CONF_TRANSPORT, DEFAULT_TRANSPORT),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=list(TRANSPORT_OPTIONS),
+                    translation_key=CONF_TRANSPORT,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Required(
                 CONF_POLLING_PROFILE,
                 default=current.get(CONF_POLLING_PROFILE, DEFAULT_POLLING_PROFILE),

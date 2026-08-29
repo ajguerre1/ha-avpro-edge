@@ -67,6 +67,15 @@ class Transport(Protocol):
     def pushes(self) -> bool:
         """Whether the device volunteers changes on this wire."""
 
+    @property
+    def connected(self) -> bool:
+        """Whether this transport is currently usable.
+
+        On a wire that holds a socket this is a real question. On a stateless one it is always
+        true, and saying so is better than leaving the attribute off: a caller should be able to
+        ask without first working out which wire it is holding.
+        """
+
     async def async_connect(self) -> None:
         """Prepare to talk to the device. A no-op for a stateless transport."""
 

@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from fake_avpro import FakeMatrix
 
-from custom_components.ha_avpro_edge.const import DOMAIN
+from custom_components.ha_avpro_edge.const import CONF_TELNET_PORT, DOMAIN
 
 # No `pytest_plugins` here. pytest refuses it outside the top-level conftest, and it is redundant
 # anyway: pytest-homeassistant-custom-component registers itself through a pytest11 entry point,
@@ -57,26 +57,53 @@ async def fake() -> FakeMatrix:
 FAKE_MAC = "aa:bb:cc:dd:ee:ff"
 
 
-def make_entry(host: str, *, unique_id: str = FAKE_MAC, **options: Any) -> MockConfigEntry:
+def make_entry(
+    host: str,
+    *,
+    unique_id: str = FAKE_MAC,
+    telnet_port: int | None = None,
+    **options: Any,
+) -> MockConfigEntry:
     """Build an unloaded entry.
 
     ``unique_id`` is a constructor argument rather than something to assign afterwards:
     ``MockConfigEntry`` refuses direct assignment, since in production it may only change through
     ``async_update_entry``.
     """
+    data: dict[str, Any] = {CONF_HOST: host}
+    if telnet_port is not None:
+        # On real hardware one address serves both wires. The fake binds two ephemeral ports, so
+        # the telnet one has to be passed explicitly.
+        data[CONF_TELNET_PORT] = telnet_port
     return MockConfigEntry(
         domain=DOMAIN,
         title="AC-MX44-AUHD",
-        data={CONF_HOST: host},
+        data=data,
         options=options,
         unique_id=unique_id,
     )
 
 
 @pytest.fixture
+async def http_entry(hass: HomeAssistant, fake: FakeMatrix) -> MockConfigEntry:
+    """An entry forced onto the HTTP transport.
+
+    For assertions about individually countable requests: one HTTP request is one command,
+    whereas telnet multiplexes everything down a single socket.
+    """
+    from custom_components.ha_avpro_edge.const import CONF_TRANSPORT, TRANSPORT_HTTP
+
+    entry = make_entry(fake.host, telnet_port=fake.telnet_port, **{CONF_TRANSPORT: TRANSPORT_HTTP})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+@pytest.fixture
 async def loaded_entry(hass: HomeAssistant, fake: FakeMatrix) -> MockConfigEntry:
     """An entry set up against the fake and fully loaded."""
-    entry = make_entry(fake.host)
+    entry = make_entry(fake.host, telnet_port=fake.telnet_port)
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()

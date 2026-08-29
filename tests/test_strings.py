@@ -87,7 +87,7 @@ def test_each_flow_step_has_a_title_and_labels_every_field() -> None:
 
 
 def test_every_option_is_labelled_and_explained() -> None:
-    from_const = {"polling_profile", "allow_writes"}
+    from_const = {"transport", "polling_profile", "allow_writes"}
     step = STRINGS["options"]["step"]["init"]
     assert set(step["data"]) == from_const
     assert set(step["data_description"]) == from_const

@@ -26,66 +26,74 @@ reason it cannot have one.
 
 ### T-R — `DeviceReport` (M-B)
 
-- [ ] T-R1 A partial report merges without clearing fields it does not mention
-- [ ] T-R2 A complete report is distinguishable from a partial one, and only a complete one may
-      clear a field
-- [ ] T-R3 Merging is associative — the order two pushes arrive in cannot change the result
+- [x] T-R1 A partial report merges without clearing fields it does not mention
+- [x] T-R2 A complete report is distinguishable from a partial one, and **even a complete one
+      does not clear a field it omits**
+- [x] T-R3 Merging is associative — the order two pushes arrive in cannot change the result
+
+> T-R2 was originally written as "only a complete one may clear a field". That was wrong, and the
+> design moved without the doc following. No report may clear anything: telnet's `GET STA` knows
+> nothing of the port names and the HTTP census knows nothing of the output stream state, so a
+> census that cleared what it omitted would have each transport erase the other's contribution on
+> every cycle. `complete` means only "enough has been read to create entities from".
 
 ### T-S — `MatrixState.apply` (M-B)
 
-- [ ] T-S1 Applying the same report twice yields an equal state (the `always_update=False` premise)
-- [ ] T-S2 A changed value makes the state unequal
-- [ ] T-S3 An unknown state key is ignored rather than raising
-- [ ] T-S4 A value of `None` means "not reported", never "off" or "input 0"
+- [x] T-S1 Applying the same report twice yields an equal state (the `always_update=False` premise)
+- [x] T-S2 A changed value makes the state unequal
+- [x] T-S3 An unknown state key is ignored rather than raising
+- [x] T-S4 A value of `None` means "not reported", never "off" or "input 0"
 
 ### T-N — Telnet grammar and client (M-C)
 
-- [ ] T-N1 Every line form in a real `GET STA` dump parses: `OUT1 VS IN1`, `OUT1 VIDEO 1`,
+- [x] T-N1 Every line form in a real `GET STA` dump parses: `OUT1 VS IN1`, `OUT1 VIDEO 1`,
       `OUT1 EXADL PH0`, `OUT1 EXA DIS`, `EXAMX MODE2`, `OUT1 AS IN2`, `OUT1 IMAGE ENH 0`,
       `OUT1 STREAM ON`, `OUT1 SGM DIS`, `IN1 TMDS ON`, `IN1 EDID 30`, `KEY LOCK OFF`, `LCD ON T2`,
       `ADDR 00`, `MAC ...`
-- [ ] T-N2 An unrecognised line is dropped, not guessed at
-- [ ] T-N3 EDID index `30` normalises to the same option key as HTTP's `EDIDU1` — the two
+- [x] T-N2 An unrecognised line is dropped, not guessed at
+- [x] T-N3 EDID index `30` normalises to the same option key as HTTP's `EDIDU1` — the two
       vocabularies must agree
-- [ ] T-N4 `EXA DIS`/`EXA EN` and `SGM DIS`/`SGM EN` map to the same booleans as HTTP's `ON`/`OFF`
-- [ ] T-N5 A partial dump produces a partial report, never a complete one
-- [ ] T-N6 A garbled or truncated line cannot corrupt neighbouring values
-- [ ] T-N7 The client sends a trailing return; the device requires it
-- [ ] T-N8 `GET STA` yields a complete report covering every state key the transport claims
-- [ ] T-N9 An unsolicited push updates only the keys it names (C3)
-- [ ] T-N10 A push arriving *during* a command response is not mistaken for the response (C6)
-- [ ] T-N11 Disconnect drops the pending overlay — a replayed optimistic value is a stale claim
-- [ ] T-N12 Reconnect backoff uses a per-client RNG, never `random.seed()`
-- [ ] T-N13 The fake telnet device reproduces push-on-change and the one-client limit
+- [x] T-N4 `EXA DIS`/`EXA EN` and `SGM DIS`/`SGM EN` map to the same booleans as HTTP's `ON`/`OFF`
+- [x] T-N5 A partial dump produces a partial report, never a complete one
+- [x] T-N6 A garbled or truncated line cannot corrupt neighbouring values
+- [x] T-N7 The client sends a trailing return; the device requires it
+- [x] T-N8 `GET STA` yields a complete report covering every state key the transport claims
+- [x] T-N9 An unsolicited push updates only the keys it names (C3)
+- [x] T-N10 A push arriving *during* a command response is not mistaken for the response (C6)
+- [x] T-N11 Disconnect drops the pending overlay — a replayed optimistic value is a stale claim
+- [x] T-N12 Reconnect backoff uses a per-client RNG, never `random.seed()`
+- [x] T-N13 The fake telnet device reproduces push-on-change and the one-client limit
 
 ### T-T — Transport interface (M-B)
 
-- [ ] T-T1 Both clients satisfy `Transport`; neither leaks a transport-specific type upward
+- [x] T-T1 **Every** transport satisfies `Transport`, discovered rather than listed; none leaks a
+      transport-specific type upward
 
 ## Integration Tests
 
 ### T-D — Selection and fallback (M-D)
 
-- [ ] T-D1 The transport option round-trips through the options flow
-- [ ] T-D2 Under `auto` with telnet reachable, telnet is selected and `pushes` is True
-- [ ] T-D3 Under `auto` with the telnet socket busy, HTTP is used and the fallback is logged **once**
-- [ ] T-D4 Under `telnet` with telnet unavailable, setup raises `ConfigEntryNotReady` rather than
+- [x] T-D1 The transport option round-trips through the options flow
+- [x] T-D2 Under `auto` with telnet reachable, telnet is selected and `pushes` is True
+- [x] T-D3 Under `auto` with the telnet socket busy, HTTP is used and the fallback is logged **once**
+- [x] T-D4 Under `telnet` with telnet unavailable, setup raises `ConfigEntryNotReady` rather than
       silently degrading
-- [ ] T-D5 Under `http`, telnet-only entities are not created
-- [ ] T-D6 A pushing transport does not poll on the 5 s tick, but does run the 60 s safety net
+- [x] T-D5 Under `http`, telnet-only entities are not created
+- [x] T-D6 A pushing transport does not poll on the 5 s tick, but does run the 60 s safety net
 
 ### T-X — Transport discipline
 
 **Telnet is primary. Always speak telnet unless you don't need to.**
 
-- [ ] T-X1 Under the `http` setting, **nothing ever connects to port 23** — asserted by the fake
+- [x] T-X1 Under the `http` setting, **nothing ever connects to port 23** — asserted by the fake
       device's connection counter. The escape hatch (S8) still holds absolutely
-- [ ] T-X2 While telnet is connected, **no HTTP request is issued for anything telnet supports**.
+- [x] T-X2 While telnet is connected, **no HTTP request is issued for anything telnet supports**.
       Routing, audio, scaler, EDID, stream, key lock and the periodic safety-net read all go over
-      telnet. Asserted by counting HTTP requests on the fake, which must stay at zero
-- [ ] T-X3 A port rename — the one thing telnet cannot do — *does* reach HTTP, even while telnet
+      telnet. Asserted against a named allowlist on the fake — `WEBDivSta`, `NETDivSta` (identity,
+      once) and `INFDivSta` (signal) — so anything else appearing is a failure
+- [x] T-X3 A port rename — the one thing telnet cannot do — *does* reach HTTP, even while telnet
       is connected, and is the only thing that does
-- [ ] T-X4 Static scan: no module opens an outbound socket outside the telnet client
+- [x] T-X4 Static scan: no module opens an outbound socket outside the telnet client
 
 > T-X2 is the assertion that encodes the rule. The old guard forbade telnet outright, which was
 > only ever a proxy for "do not take a socket someone else needs". Now that telnet is the primary
@@ -98,16 +106,16 @@ reason it cannot have one.
 - [ ] T-E2 `switch.input_N_power` reflects `IN1 TMDS ON`
 - [ ] T-E3 Key lock and LCD timeout read and write
 - [ ] T-E4 `media_player` advertises `TURN_ON`/`TURN_OFF` on telnet and **not** on HTTP
-- [ ] T-E5 `binary_sensor` prefers telnet's boolean over string-emptiness when both are available
+- [x] T-E5 Signal is supplemented over HTTP when telnet is active — telnet cannot read it at all
 - [ ] T-E6 `manifest.json` declares `local_push`
 
 ### T-W — Write semantics (already passing; must stay passing)
 
-- [ ] T-W1 One command produces exactly one state write
-- [ ] T-W2 The confirming poll or push produces none
-- [ ] T-W3 A stale reading inside the settle window does not revert the entity
-- [ ] T-W4 An ignored write expires to device truth and is **never** re-sent
-- [ ] T-W5 A quiet cycle writes no state at all (S4)
+- [x] T-W1 One command produces exactly one state write
+- [x] T-W2 The confirming poll or push produces none
+- [x] T-W3 A stale reading inside the settle window does not revert the entity
+- [x] T-W4 An ignored write expires to device truth and is **never** re-sent
+- [x] T-W5 A quiet cycle writes no state at all (S4)
 
 ## End-to-End Tests
 
@@ -133,6 +141,30 @@ an HTTP read and vice versa — which is what makes the fallback path testable a
 The live tier is the only place several constraints can be confirmed, because they are properties
 of the hardware rather than of the code: C1 (one client), C2 (socket free), C3 (push latency),
 C12 (apply latency). Each is re-checkable by the probes already used to establish it.
+
+## Triaging a red run
+
+A red CI run is a **set** of failures, not one problem. Fixing the loudest can silence the rest
+without addressing them, and a failure that stops appearing looks identical to one that was fixed.
+
+That is not hypothetical here. Run `33229748919` reported several telnet-selection failures *and*
+`AttributeError: 'HttpTransport' object has no attribute 'connected'`. The telnet failures had a
+single cause — the control port was not plumbed through — and fixing it made the `AttributeError`
+disappear too, because the affected test then received a telnet transport instead. It was a
+different bug wearing the same run, and it survived for another seven commits: `connected` was on
+neither the `Transport` protocol nor `HttpTransport`, so the HTTP fallback path would have raised
+at runtime. The path that only runs when something has already gone wrong.
+
+So:
+
+1. **Enumerate every distinct failure before fixing any.** `gh run view --log-failed`, and write
+   the list down. The count is the thing that matters.
+2. **Close each one with a change that explains it.** "It stopped appearing" is not a diagnosis.
+3. **After the fix, account for the whole list.** If eight failures were observed and one change
+   resolved all eight, say which mechanism made that true. If it cannot be stated, it is not known.
+
+The same asymmetry that governs polling governs this: a failure that vanishes on its own has not
+been understood, and an unexplained recovery is a finding, not a relief.
 
 ## Bug Tracking
 
