@@ -1,0 +1,158 @@
+"""Transport discipline (T-X1..T-X4).
+
+Replaces the blanket "never speak telnet" guard, which was only ever a proxy for the real rule.
+
+**Telnet is primary. Always speak telnet unless you don't need to.**
+
+So there are three things to assert, and the middle one is new:
+
+* nothing connects to port 23 when the user has said ``http`` -- the escape hatch still holds
+  absolutely;
+* while telnet is connected, **no HTTP request is issued for anything telnet supports** -- no
+  hedging, no dual-polling, one source of truth;
+* HTTP remains reachable for the one thing telnet genuinely cannot do, renaming ports.
+
+The failure this now guards against is the opposite of the old one. Under the old rule the danger
+was taking a socket someone else needed; under this rule it is running both wires at once, which
+doubles device load and creates two sources of truth to reconcile.
+"""
+
+from __future__ import annotations
+
+import io
+import re
+import tokenize
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+COMPONENT = ROOT / "custom_components"
+TOOLS = ROOT / "tools"
+SCRIPTS = ROOT / "scripts"
+
+#: The one module allowed to open a socket, and the one allowed to name the port as a target.
+TELNET_CLIENT = COMPONENT / "ha_avpro_edge" / "avpro" / "telnet_client.py"
+
+#: Still never acceptable anywhere. The stdlib telnet client is deprecated and does its own
+#: option negotiation, which this device does not speak -- it is a raw line protocol.
+FORBIDDEN_EVERYWHERE = (r"\btelnetlib\b",)
+
+#: Socket APIs. Permitted only in the telnet client and the fake device.
+SOCKET_APIS = (
+    r"\bopen_connection\s*\(",
+    r"\bcreate_connection\s*\(",
+    r"\bsocket\.socket\s*\(",
+)
+
+
+def _python_files(*roots: Path) -> list[Path]:
+    return sorted(path for root in roots if root.exists() for path in root.rglob("*.py"))
+
+
+def _code_only(path: Path) -> str:
+    """The file with comments and string literals stripped.
+
+    This project documents its transport rules in prose that naturally contains the words a naive
+    scan looks for, so scanning raw text would flag the explanation of a rule as a violation of it.
+    """
+    source = path.read_text(encoding="utf-8")
+    kept: list[str] = []
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type in (tokenize.COMMENT, tokenize.STRING):
+                continue
+            kept.append(token.string)
+    except tokenize.TokenError:  # pragma: no cover - unparseable source
+        return source
+    return " ".join(kept)
+
+
+# ---------------------------------------------------------------------------------------------
+# T-X4 -- who may hold a socket
+# ---------------------------------------------------------------------------------------------
+
+
+def test_the_deprecated_stdlib_telnet_client_is_never_used() -> None:
+    """This device speaks a raw line protocol with no option negotiation."""
+    offenders = [
+        str(path.relative_to(ROOT))
+        for path in _python_files(COMPONENT, TOOLS, SCRIPTS)
+        for pattern in FORBIDDEN_EVERYWHERE
+        if re.search(pattern, _code_only(path))
+    ]
+    assert not offenders, "telnetlib found in:\n" + "\n".join(offenders)
+
+
+def test_only_the_telnet_client_opens_a_socket_inside_the_integration() -> None:
+    """Every other module reaches the device through a Transport, not a wire."""
+    offenders = [
+        str(path.relative_to(ROOT))
+        for path in _python_files(COMPONENT)
+        if path != TELNET_CLIENT
+        for pattern in SOCKET_APIS
+        if re.search(pattern, _code_only(path))
+    ]
+    assert not offenders, "socket API outside the telnet client:\n" + "\n".join(offenders)
+
+
+def test_port_23_is_named_only_by_the_telnet_client() -> None:
+    """A bare 23 elsewhere is a magic number pointed at the house's control socket."""
+    pattern = re.compile(r"(connect|open_connection|create_connection)[^\n]{0,40}\b23\b")
+    offenders = [
+        str(path.relative_to(ROOT))
+        for path in _python_files(COMPONENT)
+        if path != TELNET_CLIENT and pattern.search(_code_only(path))
+    ]
+    assert not offenders, "port 23 targeted outside the telnet client:\n" + "\n".join(offenders)
+
+
+def test_the_telnet_client_declares_the_port_once_as_a_named_constant() -> None:
+    code = _code_only(TELNET_CLIENT)
+    assert "TELNET_PORT" in code
+    assert code.count(" 23 ") <= 2  # the constant's definition, and its use as a default
+
+
+# ---------------------------------------------------------------------------------------------
+# The rule is documented where a contributor will look
+# ---------------------------------------------------------------------------------------------
+
+
+def test_the_telnet_client_explains_why_it_may_hold_the_socket() -> None:
+    """The next person will reasonably wonder why this connects at all, and why it stays."""
+    prose = TELNET_CLIENT.read_text(encoding="utf-8").lower()
+    assert "one client at a time" in prose
+    assert "push" in prose
+
+
+def test_the_scan_actually_found_files() -> None:
+    """A guard that silently scans nothing passes forever."""
+    assert len(_python_files(COMPONENT)) > 10
+    assert TELNET_CLIENT.exists()
+
+
+# ---------------------------------------------------------------------------------------------
+# T-X1 / T-X2 / T-X3 -- placeholders until the transport selector lands (D1-D4)
+# ---------------------------------------------------------------------------------------------
+#
+# These three are the behavioural half of the rule and they need a transport that can be selected,
+# which is task D2. They are declared now, failing loudly rather than silently absent, so the
+# selector cannot land without them.
+
+
+@pytest.mark.xfail(reason="needs the transport selector (D2)", strict=True)
+def test_nothing_connects_to_port_23_under_the_http_setting() -> None:
+    """T-X1. The escape hatch, and the one assertion that must never be relaxed."""
+    raise AssertionError("not implemented until D2")
+
+
+@pytest.mark.xfail(reason="needs the transport selector (D2)", strict=True)
+def test_no_http_request_is_issued_for_anything_telnet_supports() -> None:
+    """T-X2. The assertion that encodes "always speak telnet unless you don't need to"."""
+    raise AssertionError("not implemented until D2")
+
+
+@pytest.mark.xfail(reason="needs the transport selector (D2)", strict=True)
+def test_a_port_rename_does_reach_http_even_while_telnet_is_connected() -> None:
+    """T-X3. The one operation telnet genuinely lacks."""
+    raise AssertionError("not implemented until D2")
