@@ -410,7 +410,15 @@ class FakeMatrix:
                 st.audio_routes[out - 1] = int(m[2])
                 return f"OUT{out} AS IN{m[2]}\r\n"
         elif m := re.fullmatch(r"SET KEY LOCK (ON|OFF)", command, re.I):
+            st.key_lock = m[1].upper() == "ON"
             return f"KEY LOCK {m[1].upper()}\r\n"
+        elif m := re.fullmatch(r"SET LCD ON T(\d+)", command, re.I):
+            # The range is enforced because the real unit enforces it: T0-T3 were accepted and
+            # T4/T5 refused with the value unchanged. A fake that accepted anything would let a
+            # select offer a fifth option that fails silently on the hardware.
+            if 0 <= int(m[1]) <= 3:
+                st.lcd_timeout = int(m[1])
+                return f"LCD ON T{m[1]}\r\n"
         return ""
 
     async def push_telnet(self, text: str) -> None:

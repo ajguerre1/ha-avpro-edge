@@ -221,6 +221,49 @@ async def test_the_controls_http_cannot_reach_are_writable_here() -> None:
     assert report.get("input_power_2") is False
 
 
+async def test_the_device_level_controls_round_trip_too() -> None:
+    """Key lock and the LCD timeout, which are not indexed by a port.
+
+    Offline and over a real socket, because the absence of this test is precisely why a broken
+    fake reached CI. It accepted ``SET KEY LOCK`` without storing it and ignored ``SET LCD ON``
+    entirely, so the only thing that noticed was a Home Assistant test -- which cannot run on the
+    development box, making a two-minute round trip out of a two-second one.
+    """
+    async with FakeMatrix() as fake:
+        transport = await _connected(fake)
+        try:
+            await transport.async_command("key_lock", True)
+            await transport.async_command("lcd_timeout", LcdTimeout.ALWAYS_ON)
+            await asyncio.sleep(0.2)
+            report = await transport.async_read_all()
+        finally:
+            await transport.async_disconnect()
+
+    assert fake.state.key_lock is True
+    assert fake.state.lcd_timeout == 0
+    assert report.get("key_lock") is True
+    assert report.get("lcd_timeout") is LcdTimeout.ALWAYS_ON
+
+
+async def test_the_fake_refuses_an_lcd_value_the_hardware_refuses() -> None:
+    """T0-T3 accepted, T4 refused. Measured on the live matrix, so the fake enforces it.
+
+    A fake that accepted anything would let a select offer a fifth option that fails silently on
+    real hardware -- the failure mode a fake exists to prevent rather than to hide.
+    """
+    async with FakeMatrix() as fake:
+        transport = await _connected(fake)
+        try:
+            await transport._send("SET LCD ON T4")
+            await asyncio.sleep(0.2)
+            report = await transport.async_read_all()
+        finally:
+            await transport.async_disconnect()
+
+    assert fake.state.lcd_timeout == 2, "the out-of-range value was accepted"
+    assert report.get("lcd_timeout") is LcdTimeout.SECONDS_30
+
+
 async def test_writes_can_be_disabled_entirely() -> None:
     async with FakeMatrix() as fake:
         transport = await _connected(fake, allow_writes=False)
