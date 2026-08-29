@@ -14,13 +14,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 
 from . import AvProConfigEntry
 
-#: Kept in sync with the config-entry data keys that must never appear in a diagnostics dump.
-TO_REDACT = {CONF_HOST}
+# There is deliberately no redaction list. `TO_REDACT = {CONF_HOST}` used to sit here and was
+# never referenced by anything -- which was harmless only because nothing is dumped in the first
+# place. Keeping it would have implied a denylist was doing the work, and the whole point of this
+# module is that one is not: a field added to the protocol later cannot leak by default, because
+# nothing is copied out wholesale.
 
 
 async def async_get_config_entry_diagnostics(

@@ -91,8 +91,15 @@ rules:
       The device has no authentication of any kind -- no username, password, token or TLS.
       There is nothing to re-authenticate.
   test-coverage: todo
-    # The offline suite is thorough; the HA-layer suite under tests/ha/ is newer and has not been
-    # measured against the 95% bar.
+    # **92%** on the 2026-08-29 run (1784 statements, 134 uncovered), against a 95% bar. Measured
+    # rather than guessed at: this previously said the suite "has not been measured", which was
+    # true and unactionable, because nothing in the repository could measure it. pytest-cov now
+    # runs in CI and reports without enforcing.
+    #
+    # The gap is concentrated rather than spread: avpro/http_transport.py at 76% (its command
+    # mapping is now reached only on the fallback path), coordinator.py at 89%, config_flow.py at
+    # 86%, and transport_select.py at 82% -- almost all of the last being the telnet retry probe,
+    # which is new. Roughly 80 statements separate this from Silver.
 
   # ---- Gold --------------------------------------------------------------------------------
   devices: done
@@ -100,6 +107,13 @@ rules:
     # Built up from shapes and counts rather than dumped and redacted. A denylist protects the
     # fields somebody remembered; on this device the port names are room names and source names,
     # so the safe default is to disclose nothing and add back only what a bug report needs.
+    #
+    # The audit found this rule marked done with the module at **0% coverage** -- the claim above
+    # was a comment and nothing executed it, which is the wrong thing to leave untested when the
+    # output is written to be pasted into a public issue. tests/ha/test_diagnostics.py now
+    # serialises the payload and searches it as text for every name, the host and the MAC, and
+    # separately pins that it still says something useful, since a dump that disclosed nothing at
+    # all would pass the first check too.
   discovery:
     status: todo
     comment: >-
