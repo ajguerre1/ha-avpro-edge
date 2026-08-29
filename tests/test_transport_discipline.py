@@ -147,3 +147,54 @@ def test_the_behavioural_assertions_exist_somewhere() -> None:
     ha_suite = (ROOT / "tests" / "ha" / "test_transport_selection.py").read_text(encoding="utf-8")
     assert "nothing_connects_to_the_control_socket_under_the_http_setting" in ha_suite
     assert "no_http_request_is_issued_for_anything_telnet_supports" in ha_suite
+
+
+# ---------------------------------------------------------------------------------------------
+# T-T1 -- both wires satisfy the contract
+# ---------------------------------------------------------------------------------------------
+#
+# Specified in the testing doc when the seam was designed and then not written, which is how
+# `connected` came to be used by a test while being absent from both the protocol and the HTTP
+# transport. It passed only because that test happened to be handed a telnet transport; under
+# fallback it would have raised AttributeError at runtime.
+
+
+def test_both_transports_satisfy_the_contract() -> None:
+    """A method missing from one wire is a crash the moment fallback happens."""
+    import sys
+
+    sys.path.insert(0, str(COMPONENT / "ha_avpro_edge"))
+    from avpro.http_transport import HttpTransport
+    from avpro.telnet_client import TelnetTransport
+    from avpro.transport import Transport
+
+    required = [name for name in dir(Transport) if not name.startswith("_")]
+    assert required, "the protocol declares nothing; this check would be vacuous"
+
+    for cls in (HttpTransport, TelnetTransport):
+        missing = [name for name in required if not hasattr(cls, name)]
+        assert not missing, f"{cls.__name__} is missing {missing}"
+
+
+def test_the_contract_covers_what_callers_actually_use() -> None:
+    """Anything reached through `transport.` in the integration or its tests has to be declared.
+
+    This is the check that would have caught `connected`.
+    """
+    import sys
+
+    sys.path.insert(0, str(COMPONENT / "ha_avpro_edge"))
+    from avpro.transport import Transport
+
+    declared = {name for name in dir(Transport) if not name.startswith("_")}
+    # Attributes only the HTTP transport offers, used by diagnostics behind an isinstance check.
+    exempt = {"device_capabilities", "tick", "set_port_count", "async_route_all", "allow_writes"}
+
+    used = set()
+    for path in [*_python_files(COMPONENT), *(ROOT / "tests").rglob("test_*.py")]:
+        used |= set(re.findall(r"transport\.([a-z_][a-z0-9_]*)", _code_only(path)))
+
+    undeclared = used - declared - exempt
+    assert not undeclared, (
+        f"reached through a Transport but not in the contract: {sorted(undeclared)}"
+    )
