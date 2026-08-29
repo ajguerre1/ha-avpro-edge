@@ -9,10 +9,6 @@ itself, Home Assistant sees it straight away.
 Works with the **AC-MX44-AUHD** and other switchers in the AUHD family. Installs and updates
 through [HACS](https://hacs.xyz/).
 
-> **Early release.** Developed and tested against firmware **V1.41**. Other firmware versions offer
-> slightly different features; the integration checks what your unit actually supports rather than
-> assuming, so anything unavailable simply does not appear.
-
 ---
 
 ## What you get
