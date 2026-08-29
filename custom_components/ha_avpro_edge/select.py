@@ -2,7 +2,7 @@
 
 All disabled by default and categorised as configuration. They are install-time settings on a
 device whose routing is the only thing that changes day to day, and every enabled entity on this
-installation fans its state out to around fifty wall panels.
+installation fans its state out to many dashboards.
 
 Which selects exist depends on what the live transport can read. Telnet can read every setting
 here; the HTTP interface cannot see output stream state, input power, key lock or the LCD

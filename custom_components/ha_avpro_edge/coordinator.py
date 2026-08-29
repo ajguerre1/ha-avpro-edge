@@ -14,7 +14,7 @@ unavailable.
 
 **Nothing is written unless it changed.** ``always_update=False`` over a value-comparable
 ``MatrixState`` means a quiet cycle notifies no listeners at all. On an installation driving
-around fifty wall panels, every state write fans out to all of them.
+many dashboards, every state write fans out to all of them.
 
 **A write is never re-sent.** The overlay bridges the device's apply latency and then yields. If
 the device disagrees after the settle window, the device wins. Re-asserting would turn a
@@ -74,7 +74,7 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
             name=f"{DOMAIN} {entry.title}",
             update_interval=update_interval,
             # A quiet tick must notify nobody. MatrixState compares by value, so this is the
-            # single largest defence against fanning noise out to every wall panel.
+            # single largest defence against fanning noise out to every dashboard.
             always_update=False,
             # The default is cooldown=10, immediate=True. An immediate refresh would fire before
             # the matrix had applied the command, guaranteeing a stale read and a visible flick.
@@ -228,10 +228,10 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
     async def async_hot_plug_reset(self, index: int) -> None:
         """Drop an input's TMDS and bring it back, so the source renegotiates.
 
-        The one function in the Control4 driver with no counterpart here. It is not a new protocol
-        operation: dropping the hot-plug line an input presents to its source and restoring it
-        *is* a hot-plug event, which is what makes a set-top box that has settled on the wrong
-        resolution -- or on nothing at all -- start again.
+        The one function in the vendor's own control-system driver with no counterpart here. It
+        is not a new operation: dropping the hot-plug line an input presents to its source and
+        restoring it *is* a hot-plug event, which is what makes a set-top box that has settled
+        on the wrong resolution -- or on nothing at all -- start again.
 
         Both halves go through :meth:`async_set`, so the overlay, the settle window and the
         never-re-send rule apply exactly as they do to any other write. Driving it with raw

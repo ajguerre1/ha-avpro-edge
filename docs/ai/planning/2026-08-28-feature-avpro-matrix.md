@@ -23,7 +23,7 @@ Testing: `docs/ai/testing/2026-08-28-feature-avpro-matrix.md`
 - [x] **M-D — Selection and fallback.** Auto/telnet/http option, capability-driven entities.
 - [x] **M-E — The features telnet unlocks.** Stream, input power, key lock, LCD timeout, and real
       `turn_on`/`turn_off`.
-- [x] **M-G — Control4 parity.** Input hot plug reset and `send_command`, so the driver can go.
+- [x] **M-G — Control-system parity.** Input hot plug reset and `send_command`, so the driver can go.
       Added 2026-08-29 with goal G6; it did not exist when this plan was written.
 - [ ] **M-F — Verified on the live unit** and released. *(0.2.1 is released; nothing is verified
       on hardware, which is the whole of what remains.)*
@@ -55,7 +55,7 @@ Legend: **[A]** agent action · **[U]** user action (live-device confirmation).
 
 > C4 inverts an existing guard rather than weakening it. The old rule was "never speak telnet",
 > which was only ever a proxy for "do not take a socket someone else needs". The real rule, per
-> the owner: **telnet is primary — always speak telnet unless you don't need to.** So the guard
+> the design: **telnet is primary — always speak telnet unless you don't need to.** So the guard
 > now asserts three things instead of one:
 >
 > - nothing connects to port 23 under the `http` setting (the escape hatch still holds);
@@ -63,7 +63,7 @@ Legend: **[A]** agent action · **[U]** user action (live-device confirmation).
 >   hedging, no dual-polling, one source of truth;
 > - HTTP is reachable for the operations telnet genuinely lacks (port rename).
 >
-> The middle assertion is the new one, and it is the one that encodes the owner's rule.
+> The middle assertion is the new one, and it is the one that encodes that rule.
 
 ### M-D — Selection and fallback
 
@@ -92,7 +92,7 @@ Legend: **[A]** agent action · **[U]** user action (live-device confirmation).
 | F1 | **[A]** Full offline + CI suite green | — | E6 | all |
 | F2 | **[U]** Confirm a live-write window, then verify routing, stream toggle and push latency on the real unit | — | F1 | T-L1..T-L3 |
 | F3 | **[A]** Public-repo audit by enumeration; version bump; release tag | — | F2 | S7 |
-| F4 | **[A]** `AV-01` backlog row in the private Home Assistant repo, linking here | private repo | F3 | — |
+| F4 | **[A]** Tracked in the deployment plan alongside the other live checks | — | F3 | — |
 
 ## Work completed ahead of the docs
 
@@ -129,7 +129,7 @@ that the earlier work had accepted without evidence. See the requirements doc's 
 | Telnet push is missed, leaving state stale | Low | 60 s `GET STA` safety net (D4); the device also volunteers routing every 8–16 s |
 | Responses and pushes interleaving corrupts a read | Medium | No request/response correlation is attempted; every line merges into a report, and writes confirm by value |
 | Weakening the telnet guard (C4) lets a real regression through | Low | Rewritten, not removed: it must still prove nothing connects under the `http` setting |
-| Holding the socket breaks something the owner has not thought of | Low | The `http` setting is an absolute escape hatch, and F2 is done with the owner present |
+| Holding the socket breaks something unanticipated | Low | The `http` setting is an absolute escape hatch, and F2 is done with someone present |
 
 ## Open process questions
 

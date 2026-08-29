@@ -145,7 +145,7 @@ async def test_an_eight_port_unit_gets_eight_outputs(hass: HomeAssistant) -> Non
 
 
 # ---------------------------------------------------------------------------------------------
-# The house's control system
+# Another control system on the network
 # ---------------------------------------------------------------------------------------------
 
 

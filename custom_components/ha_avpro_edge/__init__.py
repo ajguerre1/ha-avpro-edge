@@ -6,9 +6,9 @@ port 80 when that socket cannot be had. Telnet is primary because it pushes chan
 stream state, input power, key lock and the LCD timeout.
 
 The telnet server accepts **one client at a time**, which is a property of the hardware. In a
-typical installation that slot belongs to a control system the house depends on; here it does not.
-This integration exists so that control system can be decommissioned, so an unavailable control
-socket is treated as a fault rather than as a neighbour's claim -- see ``transport_select.py``.
+typical installation that slot belongs to a third-party control system the site depends on. Where
+nothing else needs it, an unavailable control socket is a fault rather than a neighbour's claim --
+see ``transport_select.py``.
 
 Signal detection is the one thing telnet cannot read at all, established by probing the live unit
 rather than assumed. It is supplemented over HTTP; see ``avpro/supplement.py``.
@@ -171,7 +171,7 @@ async def _async_options_updated(hass: HomeAssistant, entry: AvProConfigEntry) -
     """Apply options in place rather than reloading.
 
     Reloading would drop every entity and rebuild it to change a polling interval, which on an
-    installation driving wall panels is a visible blink across the house.
+    installation driving many dashboards is a visible blink across all of them.
     """
     coordinator = entry.runtime_data.coordinator
     allow_writes = entry.options.get(CONF_ALLOW_WRITES, DEFAULT_ALLOW_WRITES)

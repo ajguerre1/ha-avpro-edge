@@ -103,7 +103,5 @@ Listed plainly, because these are what a single pass is for:
 
 - Tick the `T-L` boxes in `docs/ai/testing/` with what was observed, and drop them from `DEFERRED`
   in `tests/test_traceability.py` — the build will complain until those two agree
-- Update **AV-20** in the private repo's `docs/ai/planning/backlog.md` with what was observed
-  (filed 2026-08-29; `findings.yaml` is the id allocator, and `AV-01` is the inventory that
-  created that section — not this)
+- Record what was observed alongside this checklist
 - Anything that surprised us becomes a fake fault, so it can never surprise us twice

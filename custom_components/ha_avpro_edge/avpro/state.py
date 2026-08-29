@@ -11,7 +11,7 @@ Two properties carry the design.
 
 **Structural equality.** ``new == old`` is true whenever nothing actually moved, which lets the
 coordinator run with ``always_update=False`` and notify no listeners at all on a quiet cycle. On
-an installation driving fifty wall panels that is the difference between a silent integration and
+a large installation that is the difference between a silent integration and
 a permanently chattering one.
 
 **Applying never clears.** A key a report does not mention keeps its previous value, always. That
@@ -149,11 +149,11 @@ class MatrixState:
         return self.series(KIND_INPUT_NAME)
 
     def output_name(self, output: int) -> str | None:
-        """The owner's name for a 1-based output, if known. Site data -- never log it."""
+        """The configured name for a 1-based output, if known. Site data -- never log it."""
         return self.values.get(f"{KIND_OUTPUT_NAME}_{output}") if output >= 1 else None
 
     def input_name(self, source: int) -> str | None:
-        """The owner's name for a 1-based input, if known. Site data -- never log it."""
+        """The configured name for a 1-based input, if known. Site data -- never log it."""
         return self.values.get(f"{KIND_INPUT_NAME}_{source}") if source >= 1 else None
 
 

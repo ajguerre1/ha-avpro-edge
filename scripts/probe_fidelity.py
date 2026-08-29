@@ -23,7 +23,8 @@ both the right comparison and the reason nothing sensitive reaches a terminal or
 
 Port names get a stronger rule than normalisation, **by position rather than by pattern**. The
 first attempt keyed on case -- protocol tokens are upper case, room names are not -- and it leaked:
-an output called ``GYM`` passed through untouched, and ``PS5`` came out as ``PS#``. The protocol is
+an all-caps output name passed through untouched, and one ending in a digit came out with the
+digit replaced. The protocol is
 positional and documented, so which fields hold names is knowable rather than guessable, and those
 fields are replaced whatever they contain. Guessing is the wrong mode for a rule that only has to
 fail once, against a repository that is public.
@@ -74,7 +75,7 @@ class UnsafeCommand(RuntimeError):
 #:
 #: Every value in this protocol's vocabulary is upper case -- ``OUT``, ``VS``, ``IN``, ``STREAM``,
 #: ``ON``, ``OFF``, ``EXA``, ``DIS``, ``SGM``, ``TMDS``, ``EDID``, ``STATICIP``, ``AC-MX#-AUHD``,
-#: ``V#.#``. The owner's port names are not: ``Kitchen``, ``AppleTV``, ``Den``. So a lower-case
+#: ``V#.#``. Configured port names are not: ``Kitchen``, ``AppleTV``, ``Den``. So a lower-case
 #: letter surviving normalisation is the signal that a token is free text rather than grammar.
 #:
 #: This is an allowlist rather than a denylist on purpose. A denylist has to anticipate what a room
@@ -104,14 +105,14 @@ def shape(text: str) -> str:
     return " ".join(scrub(token) for token in text.split())
 
 
-#: Where the owner's port names begin in each body that carries them, by field index.
+#: Where the configured port names begin in each body that carries them, by field index.
 #:
 #: ``WebSta`` is ``<model>&<firmware>&<4 output names>&<4 input names>``; ``NetSta`` is
 #: ``<mac>&<ip>&<mask>&<gateway>&<port>&STATICIP&<8 names>``. Everything from these indices on is
 #: free text and is replaced unconditionally.
 #:
 #: Position, not pattern. :func:`scrub` alone is not enough here: it keys on case, and an output
-#: called ``GYM`` would survive it untouched while ``PS5`` would come through as ``PS#``. The
+#: in all caps would survive it untouched, and one ending in a digit would keep its letters. The
 #: protocol is positional and documented, so which fields hold names is knowable rather than
 #: guessable -- and guessing is the wrong mode for a rule that only has to fail once.
 NAME_FIELDS_FROM = {"WEBSTA": 2, "NETSTA": 6}

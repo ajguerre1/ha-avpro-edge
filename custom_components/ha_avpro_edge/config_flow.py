@@ -248,7 +248,7 @@ class AvProOptionsFlow(OptionsFlow):
     """Poll cadence and the write switch.
 
     Applied without reloading the entry: reloading would drop every entity and rebuild it just to
-    change a number, which on an installation driving wall panels is a visible blink.
+    change a number, which on an installation driving many dashboards is a visible blink.
     """
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

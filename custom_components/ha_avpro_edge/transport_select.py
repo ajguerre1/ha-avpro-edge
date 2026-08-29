@@ -21,7 +21,7 @@ original design. When another control system legitimately owned the socket, degr
 HTTP was the polite and correct answer. With nothing else driving the device, an unavailable
 control socket means something is wrong -- a rebooting matrix, a network blip, a wedged session --
 and none of those should be absorbed in silence. So the fallback still happens, because leaving
-the house with no control at all would be worse, but it raises a repair issue and re-checks every
+the site with no control at all would be worse, but it raises a repair issue and re-checks every
 minute rather than every five.
 """
 
@@ -79,7 +79,7 @@ def signal_interval(entry: ConfigEntry) -> float:
 def wants_telnet(entry: ConfigEntry) -> bool:
     """Whether this entry may open the control socket at all.
 
-    The single check that stands between the user's instruction and the house's control system.
+    The single check that stands between the user's instruction and the site's control socket.
     """
     return transport_setting(entry) != TRANSPORT_HTTP
 
@@ -125,7 +125,7 @@ async def async_select_transport(
             raise ConfigEntryNotReady(str(err)) from err
         # Home Assistant is the only thing that should be driving this matrix, so this is a fault
         # rather than an accommodation. Falling back keeps the matrix controllable -- refusing to
-        # load would leave the house with nothing -- but it is not a quiet outcome any more.
+        # load would leave the site with nothing -- but it is not a quiet outcome any more.
         _LOGGER.warning(
             "%s: the telnet control socket is unavailable (%s). Falling back to the HTTP "
             "interface, which works but cannot see output stream state, input power, key lock or "

@@ -95,7 +95,7 @@ def test_only_the_telnet_client_opens_a_socket_inside_the_integration() -> None:
 
 
 def test_port_23_is_named_only_by_the_telnet_client() -> None:
-    """A bare 23 elsewhere is a magic number pointed at the house's control socket."""
+    """A bare 23 elsewhere is a magic number pointed at the matrix's control socket."""
     pattern = re.compile(r"(connect|open_connection|create_connection)[^\n]{0,40}\b23\b")
     offenders = [
         str(path.relative_to(ROOT))

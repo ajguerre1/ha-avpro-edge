@@ -1,9 +1,8 @@
 """The write-then-confirm dance, asserted on **state-write counts**.
 
 This is the panel fan-out guard, and it has to be explicit rather than an implicit property of
-the design. The installation this was built for drives around fifty wall panels that receive
-every state change, so "one command produces one state write" is a functional requirement, not a
-nicety.
+the design. A large installation may drive dozens of dashboards that receive every state change,
+so "one command produces one state write" is a functional requirement, not a nicety.
 
 The sequence being pinned down:
 
@@ -94,7 +93,7 @@ async def test_the_confirming_poll_writes_no_further_state(
 
 
 async def test_a_quiet_poll_writes_nothing_at_all(hass: HomeAssistant, fake, http_entry) -> None:
-    """T-W5. The single largest defence against fanning noise out to fifty panels."""
+    """T-W5. The single largest defence against fanning noise out to every dashboard."""
     coordinator = http_entry.runtime_data.coordinator
     events = _count_changes(hass, ENTITY)
 

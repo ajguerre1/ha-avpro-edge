@@ -1,8 +1,8 @@
 """Momentary actions: things you do to the matrix rather than settings you leave it in.
 
 One entity, and it exists for a specific reason. **Input Hot Plug Reset** is the only function in
-the Control4 driver for this matrix that had no counterpart here, and closing that gap is what
-lets the driver be removed -- which is the point of the whole project.
+the manufacturer's control-system driver that had no counterpart here, so nothing this matrix can
+do is out of reach from Home Assistant.
 
 It is a `button` rather than a `switch` because it has no state to be in. Pressing it drops an
 input's TMDS and restores it, and a moment later the matrix is exactly as it was; the effect is on

@@ -4,7 +4,7 @@ Its whole job is to write state only when something actually changed.
 
 ``DataUpdateCoordinator`` notifies every listener on every cycle it considers an update, and the
 stock ``CoordinatorEntity`` responds by writing state each time. On the installation this was
-built for, that fans out to around fifty wall panels. The three layers that stop it are:
+built for, that fans out to many dashboards. The three layers that stop it are:
 
 1. ``MatrixState`` compares by value, so ``always_update=False`` suppresses the notification
    entirely on a quiet tick;

@@ -1,11 +1,11 @@
-"""Control4 parity (T-G1..T-G4).
+"""Control-system parity (T-G1..T-G4).
 
-The functions that driver has and this did not. Parity is scoped against what the driver *does*,
-because that is the only definition that decides anything: the matrix loses its dependency on
-Control4 when nothing is left that only Control4 can do.
+The functions the manufacturer's own control-system driver has and this did not. Parity is scoped
+against what that driver *does*, because that is the only definition that decides anything: the
+matrix loses its dependency when nothing is left that only the driver can do.
 
 Its command surface is ex-audio enable, ex-audio matrix mode, ex-audio output, LCD time, keylock,
-**Input Hot Plug Reset** and **Send API Command**. The first five were already covered by entities.
+**Input Hot Plug Reset** and a raw-command action. The first five were already covered by entities.
 The last two are here.
 """
 

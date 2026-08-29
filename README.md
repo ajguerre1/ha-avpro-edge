@@ -1,173 +1,212 @@
 # AVPro Edge for Home Assistant
 
-A Home Assistant custom integration for **AVPro Edge AUHD-series HDMI matrix switchers**, such as
-the AC-MX44-AUHD. It exposes each matrix output as a `media_player` whose source list is the
-matrix's inputs, so routing a source to a display is a normal Home Assistant action — usable from
-dashboards, scripts, scenes and voice assistants.
+Bring your AVPro Edge HDMI matrix into Home Assistant.
 
-Installable and updatable through [HACS](https://hacs.xyz/).
+Pick which source plays on which display from a dashboard, a script, a scene or a voice assistant —
+the same way you control anything else in your home. When someone changes a source at the matrix
+itself, Home Assistant sees it straight away.
 
-> **Status: early.** Developed against firmware **V1.41**. Other firmware revisions expose
-> different endpoints; the integration detects what is present rather than assuming.
+Works with the **AC-MX44-AUHD** and other switchers in the AUHD family. Installs and updates
+through [HACS](https://hacs.xyz/).
 
-## Telnet first, HTTP as the fallback
+> **Early release.** Developed and tested against firmware **V1.41**. Other firmware versions offer
+> slightly different features; the integration checks what your unit actually supports rather than
+> assuming, so anything unavailable simply does not appear.
 
-These matrices offer a telnet command interface on port 23 and a CGI web interface on port 80.
-This integration prefers **telnet**, and falls back to HTTP when it cannot have that socket.
+---
 
-Telnet pushes changes within ~300–400 ms from any source — the front panel, the unit's own web
-page, anything else on the network — reads the whole device in one command, and is the only wire
-that can see output stream state, input power, key lock and the LCD backlight timeout. Under HTTP
-those controls are not created at all rather than shown reading unknown.
+## What you get
 
-The one thing telnet **cannot** do is report signal detection. That was established against a live
-unit rather than assumed: thirty-two command spellings across two probe rounds every one answered
-`CMD ERR`, and `GET STA` carries no signal line. Signal is therefore read over HTTP even while
-telnet is connected — the single documented exception, alongside reading the port names once at
-setup, since neither is something telnet supports.
+Each **output** becomes a media player with a source list — choose an input, the display follows.
+Your own names for the inputs are used, so the list reads the way your matrix is labelled.
 
-The telnet server accepts **exactly one client at a time**: four simultaneous connection attempts
-produced one success and three timeouts. If your installation has a control system that needs that
-socket, set the transport option to `http` and nothing will ever open port 23. Otherwise an
-unavailable control socket is treated as a fault — the integration still falls back so the matrix
-stays controllable, but it raises a repair issue and re-checks every minute.
+Alongside that, one device with:
 
-## Installation
-
-### HACS (recommended)
-
-1. In Home Assistant, open **HACS → ⋮ → Custom repositories**.
-2. Add `https://github.com/ajguerre1/ha-avpro-edge` with category **Integration**.
-3. Find **AVPro Edge** in HACS and install it.
-4. Restart Home Assistant.
-5. Go to **Settings → Devices & services → + Add integration** and search for **AVPro Edge**.
-
-### Manual
-
-Copy `custom_components/ha_avpro_edge/` into your Home Assistant `config/custom_components/`
-directory and restart Home Assistant.
-
-## Configuration
-
-Configuration is entirely through the UI. You are asked for one thing:
-
-| Field | Meaning |
+| Control | What it does |
 |---|---|
-| **Host** | The matrix's IP address or hostname. Scheme and path are stripped, so `http://192.0.2.10/` works. |
+| **Output source** | Which input each display is showing |
+| **Output stream** | Turn an output's picture on or off — the closest thing to "blank that screen" |
+| **Signal detected** | Whether each port currently has a live picture on it |
+| **Audio** | Separate audio routing, delay and the extracted-audio output, per output |
+| **Picture** | Scaler mode, image enhancement and a test pattern, per output |
+| **EDID** | What each input advertises to the source connected to it |
+| **Input power** | Whether the matrix is driving each input's HDMI connection |
+| **Hot plug reset** | Nudges a source to renegotiate when it has settled on the wrong picture |
+| **Front panel** | Button lock, and how long the display stays lit |
 
-The integration then reads the unit's identity, confirms it is an AVPro matrix, and registers it.
-The number of inputs and outputs is read from the device rather than assumed, so non-4x4 models in
-the same family should work.
+Most of these are settings you adjust once, so they arrive switched off to keep your dashboards
+tidy. Turn on any you want in **Settings → Devices & services → AVPro Edge → Entities**.
 
-### Options
+---
 
-Reachable from the integration's **Configure** button. Changes apply immediately without a reload.
+## Before you start
 
-| Option | Default | Meaning |
+You need:
+
+- An AVPro Edge AUHD-series matrix on the same network as Home Assistant
+- Its IP address — you can find this on the matrix's front panel or in your router
+- [HACS](https://hacs.xyz/) installed, if you want the easy route
+
+A fixed IP address is worth setting up. If the matrix moves to a different address, Home Assistant
+will lose track of it until you point it at the new one.
+
+---
+
+## Installing
+
+### Through HACS
+
+1. Open **HACS** in Home Assistant
+2. Click the **⋮** menu (top right) → **Custom repositories**
+3. Paste `https://github.com/ajguerre1/ha-avpro-edge` and choose category **Integration**
+4. Find **AVPro Edge** in the list and click **Download**
+5. **Restart Home Assistant**
+
+### By hand
+
+Copy the `custom_components/ha_avpro_edge/` folder into your Home Assistant
+`config/custom_components/` folder, then restart Home Assistant.
+
+### Adding your matrix
+
+1. Go to **Settings → Devices & services**
+2. Click **+ Add integration** and search for **AVPro Edge**
+3. Enter the matrix's IP address
+
+That is the only thing you are asked for. The integration reads the rest — model, how many inputs
+and outputs, and the names you have given them — from the matrix itself.
+
+---
+
+## Settings
+
+Click **Configure** on the integration to change these. They take effect immediately; nothing
+restarts and no controls disappear while you do it.
+
+| Setting | Default | What it means |
 |---|---|---|
-| **Transport** | Auto | `auto` prefers telnet and falls back to HTTP. `telnet` refuses to start without it. `http` never opens port 23 — the escape hatch for an installation whose control system needs that socket. |
-| **Polling profile** | Balanced (5 s) | How often the matrix is polled. Responsive is 3 s, Gentle is 15 s. On telnet this sets only how often signal is re-read, because everything else is pushed. |
-| **Allow writes** | On | When off, the integration is read-only and cannot change routing. Useful while you observe it alongside an existing control system. |
+| **Connection** | Automatic | How Home Assistant talks to the matrix. See below. |
+| **Update speed** | Balanced | How often Home Assistant checks in. Responsive is quicker, Gentle is lighter on the matrix. |
+| **Allow changes** | On | Turn off to make the integration read-only. Useful if you want to watch it for a while before letting it control anything. |
+
+### About the connection setting
+
+The matrix offers two ways in, and the integration prefers the faster one.
+
+**Automatic** (recommended) uses the matrix's control connection, which reports changes the instant
+they happen and can see everything the matrix does. If that connection is unavailable, it falls
+back to the web interface so you keep control either way, and tells you it has done so.
+
+**Web interface only** never uses the control connection at all. Choose this if something else in
+your system needs it — the matrix accepts only one control connection at a time. A few controls are
+unavailable this way, because the web interface cannot report them.
+
+---
 
 ## Actions
 
-Two, for the things that do not fit an entity. Both take the matrix's config entry.
+Two extra actions, for things that do not fit a single control.
 
-### `ha_avpro_edge.route_all`
-
-Sends every output to one input in a single command rather than one per output — a real difference
-on a transport that serialises every request.
+**Route all outputs** sends every display to the same input in one go — handy for "everyone watch
+this" scenes.
 
 ```yaml
 action: ha_avpro_edge.route_all
 data:
-  config_entry_id: 01JABCDEF0123456789ABCDEF
+  config_entry_id: <your matrix>
   source: 2
 ```
 
-### `ha_avpro_edge.send_command`
-
-The escape hatch, for anything this integration has not modelled. It returns the device's own
-reply, which matters because unsupported commands are answered with `NO SUPPORT` and HTTP 200 —
-without the body you cannot tell "it worked" from "it was politely ignored".
+**Send command** passes a command straight to the matrix, for anything this integration does not
+already cover. It hands back whatever the matrix replied, so you can tell whether it was accepted.
 
 ```yaml
 action: ha_avpro_edge.send_command
 data:
-  config_entry_id: 01JABCDEF0123456789ABCDEF
+  config_entry_id: <your matrix>
   endpoint: video
   command: O1I2
 response_variable: result
 ```
 
-`endpoint` is one of `video`, `audio`, `system`, `edid`, `tmds`. The endpoints that reconfigure the
-matrix's network settings or factory-reset it are **absent from that list by construction**, not
-merely rejected — a wrong address on a matrix in a wiring closet is a site visit, and that is not
-something an automation should be able to cause. Commands are letters and digits only.
+For safety this cannot reach the matrix's network settings or factory reset. A wrong network
+setting would take the matrix off the network entirely, which is not something an automation should
+be able to do by accident.
 
-## Removal
+---
 
-**Settings → Devices & services → AVPro Edge → ⋮ → Delete**. That removes the config entry, its
-device and all of its entities. To remove the code as well, uninstall it from HACS (or delete
-`custom_components/ha_avpro_edge/`) and restart Home Assistant. The integration writes nothing to
-the matrix on removal — the matrix keeps whatever routing it had.
+## Troubleshooting
 
-## Development
+**The integration will not add my matrix.**
+Check the IP address is right, and that you can open it in a browser from the same network. If the
+page loads but Home Assistant still refuses, the unit may not be an AUHD-series matrix — the
+integration checks what answers before accepting it.
 
-```bash
-pip install -r requirements-test.txt
-pytest tests/ -v          # offline suite, runs on Windows
-ruff check . && ruff format --check .
-```
+**Everything shows as unavailable.**
+The matrix is unreachable. Check it is powered on and on the network. Home Assistant reconnects on
+its own once it comes back; you do not need to restart anything.
 
-Install the pre-push hook, which runs all three before letting a push through:
+**A notice says the control connection is unavailable.**
+Home Assistant expected the faster connection and could not get it, so it fell back to the web
+interface. Everything still works, but a few controls are missing and changes take a little longer
+to appear. The matrix accepts only one control connection at a time, so the usual causes are the
+matrix restarting, a brief network problem, or another system holding that connection. Home
+Assistant re-checks every minute and switches back on its own, and the notice clears itself.
 
-```bash
-cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
-```
+**Some controls are missing.**
+Two possible reasons. Most arrive switched off to keep dashboards tidy — turn on the ones you want
+under **Entities**. If a control is missing entirely, either your firmware does not offer it or you
+are on the web-interface-only connection setting.
 
-`ruff check` and `ruff format --check` are separate checks and the second is easy to forget,
-because it usually passes — until ruff reformats a Python block inside a Markdown file. The hook
-exists so that is caught before the push rather than after it.
+**A source shows the wrong picture size, or nothing at all.**
+Try the **hot plug reset** button for that input. It briefly disconnects and reconnects the input,
+which makes the source work out what the display can accept all over again.
 
-`tests/ha/` needs `pytest-homeassistant-custom-component`, which pulls in Home Assistant and
-therefore cannot be imported on Windows (`homeassistant.runner` imports POSIX-only `fcntl`). Those
-tests run in CI. Everything under `custom_components/ha_avpro_edge/avpro/` has no Home Assistant
-imports and runs anywhere.
+**A display went black.**
+Check whether that output's **stream** control is switched off. That control deliberately stops the
+picture; switch it back on.
 
-`tools/fake_avpro.py` is a fake matrix that speaks the real CGI protocol with fault injection, so
-the client can be developed and tested without touching hardware.
+**Changing something appears to do nothing.**
+Check **Allow changes** is on in the integration's settings. When it is off, the integration will
+not change anything on the matrix.
 
-## Brand images
+### Getting help
 
-The icon and logo live in `custom_components/ha_avpro_edge/brand/` and that is all that is needed.
+Open an issue at [github.com/ajguerre1/ha-avpro-edge/issues](https://github.com/ajguerre1/ha-avpro-edge/issues).
 
-**No submission to `home-assistant/brands` is required, and one would be refused.** Since Home
-Assistant 2026.3, custom integrations ship their own brand images: the frontend fetches them
-through `/api/brands/integration/{domain}/{image}`, and a local `brand/` directory takes priority
-over the brands CDN. The brands repository's own pull request template now says outright that
-"pull requests for adding new custom components will no longer be accepted".
+Please attach the diagnostics file — on the integration page, **⋮ → Download diagnostics**. It is
+built to be safe to share: no names, no addresses, nothing identifying your setup, only what is
+needed to understand the problem.
 
-Verified rather than assumed: on a 2026.8 instance, `GET /api/brands/integration/{domain}/icon.png`
-returns the integration's committed `brand/icon.png` byte for byte, confirmed by SHA-256 against
-two other installed custom integrations.
+---
 
-All eight supported filenames are shipped: `icon.png`, `logo.png`, their `@2x` variants, and a
-`dark_` prefixed version of each. AVPro publish the wordmark twice, black-on-white and
-white-on-black, so each theme gets the artwork drawn for it rather than one image compromising
-across both. `scripts/make_brand_icons.py` generates all eight from the two sources in `assets/`.
+## Removing it
+
+1. **Settings → Devices & services → AVPro Edge → ⋮ → Delete**
+
+   This removes the matrix and all of its controls from Home Assistant. Nothing on the matrix
+   itself is changed — your routing, names and settings stay exactly as they are.
+
+2. If you also want the files gone, open **HACS → AVPro Edge → ⋮ → Remove**, then restart Home
+   Assistant.
+
+---
+
+## For developers
+
+Setup, testing and contribution notes are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
 
 ## Trademarks
 
-**AVPro Edge** and the AVPro Edge logo are trademarks of their owner. This project is an
-independent integration and is **not affiliated with, endorsed by, or supported by AVPro Edge**.
+**AVPro Edge** and the AVPro Edge logo are trademarks of their owner. This project is independent
+and is **not affiliated with, endorsed by, or supported by AVPro Edge**.
 
-The mark appears under `custom_components/ha_avpro_edge/brand/` for one reason: to identify which
-device the integration controls, which is what an integration icon in Home Assistant is for. It is
-generated from the manufacturer's wordmark by `scripts/make_brand_icons.py`, and the artwork
-remains the property of its owner.
+The logo appears here only to identify which product the integration works with, which is what an
+integration icon is for in Home Assistant. The artwork remains the property of its owner.
 
 ## License
 
-MIT — covering the code in this repository. The licence does not extend to the AVPro Edge marks
-under `brand/` and `assets/`; see **Trademarks** above.
+MIT, covering the code in this repository. The licence does not extend to the AVPro Edge marks; see
+**Trademarks** above.

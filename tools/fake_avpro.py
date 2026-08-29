@@ -13,7 +13,7 @@ or drive it from a test::
 Built on ``aiohttp.web``, which the vendored client already depends on, so the fake costs no
 extra test dependency.
 
-**Every value here is invented.** A capture from a real unit carries the owner's room names and
+**Every value here is invented.** A capture from a real unit carries the site's room names and
 source labels in every status body, so no real capture may become a fixture.
 
 Each fault exists to prove one specific defence. A fault with nothing asserting on it is dead

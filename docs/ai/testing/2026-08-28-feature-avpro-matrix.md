@@ -17,7 +17,7 @@ Three tiers, split by what they need rather than by what they cover.
 |---|---|---|---|
 | Offline | `tests/` | Nothing but Python | Everywhere, including Windows |
 | HA-layer | `tests/ha/` | `pytest-homeassistant-custom-component` | CI only — Home Assistant cannot be imported on Windows |
-| Live | `scripts/` + a human | The real matrix | On request, with the owner present |
+| Live | `scripts/` + a human | The real matrix | On request, with someone present |
 
 Target: every requirement `R1`–`R21` and every constraint `C1`–`C16` either has a test or a stated
 reason it cannot have one.
@@ -109,11 +109,11 @@ reason it cannot have one.
 - [x] T-E5 Signal is supplemented over HTTP when telnet is active — telnet cannot read it at all
 - [x] T-E6 `manifest.json` declares `local_push`
 
-### T-G — Control4 parity (M-G)
+### T-G — Control-system parity (M-G)
 
-The functions the Control4 driver has that this did not. Scoped against what that driver *does*,
-which is the only definition of "parity" that matters — the matrix loses its dependency when
-nothing is left that only C4 can do.
+The functions the vendor's own control-system driver has that this did not. Scoped against what
+that driver *does*, which is the only definition of "parity" that matters — the matrix loses its
+dependency when nothing is left that only the driver can do.
 
 - [x] T-G1 Input hot plug reset drops the input's TMDS and restores it, through the same overlay
       every other write uses
@@ -133,7 +133,7 @@ nothing is left that only C4 can do.
 
 ## End-to-End Tests
 
-### T-L — Live, owner-gated
+### T-L — Live, needs the hardware
 
 - [ ] T-L1 Route a real output over telnet; observe the change and restore it
 - [ ] T-L2 Toggle `OUT1 STREAM` and confirm it reads back — the capability HTTP could not offer
@@ -145,12 +145,12 @@ nothing is left that only C4 can do.
       because how long a hot-plug line must drop is a property of the *source*, and nothing on
       either wire can report whether it noticed
 - [ ] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON* — the option
-      count is measured, but the labels come from the Control4 driver's list order and cannot be
+      count is measured, but the labels come from the vendor driver's list order and cannot be
       observed over either wire
 
 ## Test Data
 
-Fixtures are **invented**, never captured. A real `GET STA` dump contains the owner's port names
+Fixtures are **invented**, never captured. A real `GET STA` dump contains the site's port names
 and the unit's address and MAC; a real status body is site data. Fixtures use `OutA`/`SrcA`,
 `10.0.0.1`, `AA:BB:CC:DD:EE:FF`.
 
@@ -190,7 +190,7 @@ been understood, and an unexplained recovery is a finding, not a relief.
 ## Bug Tracking
 
 Findings that change behaviour go in the planning doc's risk table and, if they outlive the
-feature, as an `AV-xx` row in the private Home Assistant repo's backlog.
+feature, in the deployment plan.
 
 ---
 

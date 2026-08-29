@@ -2,8 +2,9 @@
 
 Two questions the fake cannot answer, because the fake only knows what I told it.
 
-**Which ``T`` values does ``SET LCD ON T{n}`` accept?** The Control4 driver lists four options --
-Always ON, 15sec, 30sec, 60sec -- so ``T0``-``T3`` is a reasonable inference from its LIST order.
+**Which ``T`` values does ``SET LCD ON T{n}`` accept?** The manufacturer's control-system driver
+lists four options -- Always ON, 15sec, 30sec, 60sec -- so ``T0``-``T3`` is a reasonable inference
+from that order.
 An inference is not a measurement, and these become user-facing labels in a select. If ``T4`` is
 accepted the list is wrong; if ``T3`` is rejected it is also wrong.
 
@@ -93,7 +94,7 @@ async def probe_lcd(session: Session, original: str) -> None:
     accepted, rejected = [], []
 
     # 0-5 rather than 0-3: the point is to find the boundary, which means asking past where the
-    # Control4 driver's four options say it should be.
+    # vendor driver's four options say it should be.
     for value in range(6):
         await session.send(f"SET LCD ON T{value}")
         await asyncio.sleep(SETTLE)
@@ -109,7 +110,7 @@ async def probe_lcd(session: Session, original: str) -> None:
     print(f"  rejected: {rejected}")
     expected = [0, 1, 2, 3]
     if accepted == expected:
-        print("  -> matches the Control4 driver's four options (Always ON / 15s / 30s / 60s)")
+        print("  -> matches the vendor driver's four options (Always ON / 15s / 30s / 60s)")
     else:
         print(f"  -> DOES NOT match the inferred {expected}. The select's options are wrong.")
 

@@ -116,7 +116,7 @@ right one until somebody stands in front of the matrix.
 So there are exactly four, and the boundary is real rather than assumed. The unit was found at
 `T2` and restored to `T2`; key lock was found `OFF`, round-tripped both ways, and restored `OFF`.
 
-**What they mean: inferred.** The Control4 driver's `Set LCD Remain On Time` offers four items in
+**What they mean: inferred.** The vendor's control-system driver's `Set LCD Remain On Time` offers four items in
 this order — **Always ON, 15sec, 30sec, 60sec** — and four options mapping onto four accepted
 values in order is good corroboration from the vendor's own source.
 

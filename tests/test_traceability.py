@@ -51,11 +51,11 @@ RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
 #:
 #: * **M-E** is ordinary outstanding work. These become tests when the entities land.
 #: * **T-L** is the live tier. These cannot run in CI by construction: they need the real matrix,
-#:   and several of them are disruptive enough to require the owner present (T-L2 blanks a
-#:   display; T-L4 pulls power). They are checked off by hand in the doc, with evidence.
+#:   and several of them are disruptive enough to need someone present (T-L2 blanks a display;
+#:   T-L4 pulls power). They are checked off by hand in the doc, with evidence.
 DEFERRED: dict[str, str] = {
-    "T-L1": "live tier: needs the real matrix, and routing an output is visible on a wall panel",
-    "T-L2": "live tier: toggling OUT1 STREAM blanks a display -- owner must be present",
+    "T-L1": "live tier: needs the real matrix, and routing an output is visible on a display",
+    "T-L2": "live tier: toggling OUT1 STREAM blanks a display -- someone must be watching it",
     "T-L3": "live tier: needs a human at the matrix's web page",
     "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
     "T-L5": "live tier: installing from HACS happens on the live Home Assistant",

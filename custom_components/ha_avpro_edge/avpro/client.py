@@ -7,7 +7,7 @@ parsed result.
 **HTTP, never telnet.** The unit also listens on port 23, and the vendor's own control-system
 driver uses it. That server accepts exactly one client at a time: four simultaneous connection
 attempts produced one success and three timeouts. In a typical installation the single slot is
-already held, persistently, by a control system that the house depends on. Opening it from here
+already held, persistently, by a third-party control system the site depends on. Opening it here
 would take it away from that controller. Nothing in this package may import a telnet library or
 connect to port 23, and ``tests/test_no_telnet.py`` enforces it.
 

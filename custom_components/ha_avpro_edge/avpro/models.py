@@ -170,8 +170,8 @@ class LcdTimeout(StrEnum):
     ``SET LCD ON T{n}`` for n in 0-5 against the live matrix and read each back from ``GET STA``:
     0-3 accepted, 4 and 5 refused with the value staying at 3.
 
-    *What each one means* is **inferred**, from the Control4 driver's ``Set LCD Remain On Time``
-    listing exactly these four in this order. Four labels mapping onto four accepted values in
+    *What each one means* is **inferred**, from the manufacturer's own control-system driver, which
+    lists exactly these four in this order. Four labels mapping onto four accepted values in
     order is good corroboration from the vendor's own source -- but a backlight timeout cannot be
     observed over either wire, so confirming ``T0`` really is *always on* rather than *15 seconds*
     needs a person at the front panel. Tracked as T-L6.

@@ -117,7 +117,7 @@ rules:
   discovery:
     status: todo
     comment: >-
-      SDDP is not a Home Assistant discovery mechanism -- it is Control4-proprietary on UDP 1902,
+      SDDP is not a Home Assistant discovery mechanism -- it is a proprietary protocol on UDP 1902,
       while Home Assistant's ssdp component listens on 1900. The realistic path is a dhcp: block
       keyed on the AVPro OUI, which needs the OUI confirmed across more than one unit.
   discovery-update-info: todo
@@ -136,8 +136,8 @@ rules:
   entity-disabled-by-default: done
     # 12 of 55 entities are enabled: four media players, four signal sensors and four output
     # stream switches. The rest are install-time settings on a device whose routing is the only
-    # thing that changes day to day, and this installation fans every state change out to around
-    # fifty wall panels. Stream is the one control that earned its place on by default -- blanking
+    # thing that changes day to day, and a large installation fans every state change out to many
+    # dashboards. Stream is the one control that earned its place on by default -- blanking
     # a display is an everyday action, not commissioning.
   entity-translations: done
   exception-translations: done

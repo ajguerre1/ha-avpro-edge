@@ -12,7 +12,7 @@ socket, and anything that is not a ``GET``/``HELP``/``?`` raises rather than bei
 guard in the send path rather than a convention about which strings appear in the list below --
 enforced by ``tests/test_transport_discipline.py``.
 
-**Site data.** A real matrix answers with the owner's port names, the unit's MAC and its address.
+**Site data.** A real matrix answers with configured port names, the unit's MAC and its address.
 Output is redacted before printing and written under ``local/``, which is gitignored.
 
 Usage::
@@ -151,7 +151,7 @@ async def main() -> int:
             print(f"{command:24} -> {len(answer):5d} bytes, {len(block.splitlines()):3d} lines")
     finally:
         writer.close()
-        # Hand the socket back promptly; something else in the house may want it.
+        # Hand the socket back promptly; something else on the network may want it.
         with contextlib.suppress(OSError):
             await writer.wait_closed()
 

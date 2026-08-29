@@ -86,7 +86,7 @@ async def test_an_absent_endpoint_reports_not_found_and_does_not_raise(session) 
     """The whole point: this arrives as 200 with an HTML body.
 
     No fault required. TMDS is absent on the default fake because it is absent on the firmware in
-    the house, so this is the ordinary case rather than an injected one.
+    the field, so this is the ordinary case rather than an injected one.
     """
     async with FakeMatrix() as fake:
         client = await _client(session, fake)

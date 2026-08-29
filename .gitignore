@@ -42,3 +42,6 @@ desktop.ini
 # Restore in a fresh clone with:
 #   npx ai-devkit@latest init -a -e claude --built-in --yes
 .claude/skills/
+
+# Lifecycle tooling config -- local only, not part of what users install.
+.ai-devkit.json

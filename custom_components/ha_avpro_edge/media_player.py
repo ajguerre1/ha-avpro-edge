@@ -80,7 +80,7 @@ class AvProOutput(AvProEntity, MediaPlayerEntity):
     # -- naming --------------------------------------------------------------------------
 
     def _input_label(self, source: int) -> str:
-        """The owner's name for an input, falling back to a positional label."""
+        """The configured name for an input, falling back to a positional label."""
         return self.coordinator.matrix.input_name(source) or f"Input {source}"
 
     @property

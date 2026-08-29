@@ -5,8 +5,8 @@
 transport that serialises every call is a real difference, not a micro-optimisation.
 
 ``send_command`` is the escape hatch, and it is the reason this module needs care. It replaces the
-Control4 driver's *Send API Command*, so that removing that driver costs nobody the ability to
-reach something this integration has not modelled.
+vendor control-system driver's raw-command action, so nobody loses the ability to reach something
+this integration has not modelled.
 
 **What it deliberately cannot do.** The endpoint is an enumeration, never a free-form URL or an
 arbitrary telnet line. That is not defensive tidiness -- it is the difference between "run a

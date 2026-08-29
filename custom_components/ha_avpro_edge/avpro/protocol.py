@@ -112,7 +112,7 @@ class ParsedStatus:
     outcome: ParseOutcome
     fields: tuple[str, ...] = ()
     #: Short, non-sensitive description of why parsing failed. Never contains field values,
-    #: because those are the owner's room and source names.
+    #: because those are the site's room and source names.
     detail: str = ""
 
     @property

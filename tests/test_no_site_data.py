@@ -1,6 +1,6 @@
 """Static guarantee that no site data reaches this public repository.
 
-The device stores the owner's information and hands it back on every poll: the four output names
+The device stores the site's own information and hands it back on every poll: the four output names
 are room names, the four input names are source names, and the network body carries the LAN
 address and MAC. Any of it committed here is published.
 
@@ -160,3 +160,52 @@ def test_the_gitignore_keeps_local_and_probe_output_out() -> None:
 
 def test_no_tracked_file_lives_under_local() -> None:
     assert not [p for p in _tracked_files() if "local" in p.relative_to(ROOT).parts[:1]]
+
+
+# ---------------------------------------------------------------------------------------------
+# Third-party names and internal tooling
+# ---------------------------------------------------------------------------------------------
+#
+# Separate from the site-data checks above, and for a different reason. Nothing here is a secret;
+# it is that a public product repository should not name a competing control system, carry the
+# fingerprints of whatever internal process built it, or point at a private tracker. Those crept
+# in naturally while the work was in flight, and would creep back the same way.
+
+#: Words that should not appear in a repository whose audience is people installing an
+#: integration. The rationale each one stands for is kept -- "a third-party control system" says
+#: everything a brand name did, without putting somebody else's product in every other docstring.
+FORBIDDEN_TERMS = (
+    r"\bcontrol4\b",
+    r"\bai-devkit\b",
+    r"\bcrestron\b",
+    r"\brti\b",
+)
+
+#: Files that may legitimately mention them, with the reason. An exception is argued for here
+#: rather than assumed, so the list stays short enough to read.
+TERM_EXEMPT: dict[str, str] = {
+    ".gitignore": "has to name the lifecycle config in order to keep it out of the repository",
+}
+
+
+def test_no_third_party_or_internal_tooling_names() -> None:
+    """A public product repository should read as one.
+
+    Not a privacy rule -- a positioning one. The engineering reasoning that used to name a specific
+    control system is unchanged; it just describes the category now, which is what actually made
+    the argument in the first place.
+    """
+    offenders: list[str] = []
+    for path, text in _contents():
+        if path.name in TERM_EXEMPT or path.resolve() == Path(__file__).resolve():
+            continue
+        for pattern in FORBIDDEN_TERMS:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                line = text[: match.start()].count("\n") + 1
+                offenders.append(f"{path.name}:{line}: {match.group(0)}")
+    assert not offenders, "third-party or internal tooling names:\n  " + "\n  ".join(offenders)
+
+
+def test_the_lifecycle_config_is_not_shipped() -> None:
+    """It configures the tooling that built this, which nobody installing it needs."""
+    assert ".ai-devkit.json" not in {p.name for p in _tracked_files()}
