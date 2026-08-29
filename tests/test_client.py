@@ -114,7 +114,7 @@ async def test_a_truncated_body_never_yields_a_wrong_route(session) -> None:
     wrong* route surviving, which is what a positional parser would produce here.
     """
     from avpro import protocol as proto
-    from avpro.state import MatrixState, fold_video
+    from avpro.http_decode import decode
 
     async with FakeMatrix(faults={"truncated"}) as fake:
         fake.state.video_routes = [1, 2, 3, 4]
@@ -124,9 +124,11 @@ async def test_a_truncated_body_never_yields_a_wrong_route(session) -> None:
         recognised = [t for t in parsed.fields if proto.parse_video_route(t) is not None]
         assert len(recognised) < 4  # the body really was cut
 
-        folded = fold_video(MatrixState(), parsed)
-        for output, source in enumerate(folded.video_routes, start=1):
-            assert source in (None, fake.state.video_routes[output - 1])
+        # Whatever survived must be right. A wrong-but-plausible route is the failure mode.
+        report = decode(StatusEndpoint.VIDEO, parsed, port_count=4)
+        for key, source in report.values.items():
+            output = int(key.rsplit("_", 1)[1])
+            assert source == fake.state.video_routes[output - 1]
 
 
 # ---------------------------------------------------------------------------------------------

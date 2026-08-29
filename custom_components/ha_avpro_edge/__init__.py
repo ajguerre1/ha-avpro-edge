@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .avpro.client import AvProClient
+from .avpro.http_transport import HttpTransport
 from .const import (
     CONF_ALLOW_WRITES,
     CONF_POLLING_PROFILE,
@@ -42,6 +43,9 @@ class AvProRuntime:
     """What the entry keeps alive while it is loaded."""
 
     coordinator: AvProCoordinator
+    #: Held so the options listener can flip read-only mode without reloading the entry. The
+    #: coordinator deliberately cannot reach it -- it talks to a Transport, not to a wire.
+    client: AvProClient
 
 
 type AvProConfigEntry = ConfigEntry[AvProRuntime]
@@ -65,13 +69,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: AvProConfigEntry) -> boo
         seed=entry.entry_id,
     )
 
-    coordinator = AvProCoordinator(hass, entry, client, update_interval=_interval(entry))
+    # The coordinator talks to a Transport, never to a wire directly. Today that is always HTTP;
+    # the telnet transport slots in here without the coordinator or any entity changing.
+    transport = HttpTransport(client)
+
+    coordinator = AvProCoordinator(hass, entry, transport, update_interval=_interval(entry))
+    await coordinator.async_prepare()
 
     # Raises ConfigEntryNotReady on failure, which is `test-before-setup`: entities are never
     # created against a matrix we have not actually read.
     await coordinator.async_config_entry_first_refresh()
 
-    entry.runtime_data = AvProRuntime(coordinator=coordinator)
+    entry.runtime_data = AvProRuntime(coordinator=coordinator, client=client)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
@@ -92,7 +101,9 @@ async def _async_options_updated(hass: HomeAssistant, entry: AvProConfigEntry) -
     installation driving wall panels is a visible blink across the house.
     """
     coordinator = entry.runtime_data.coordinator
-    coordinator.client.allow_writes = entry.options.get(CONF_ALLOW_WRITES, DEFAULT_ALLOW_WRITES)
+    entry.runtime_data.client.allow_writes = entry.options.get(
+        CONF_ALLOW_WRITES, DEFAULT_ALLOW_WRITES
+    )
     # The setter reschedules the timer for us.
     coordinator.update_interval = _interval(entry)
     coordinator.async_update_listeners()

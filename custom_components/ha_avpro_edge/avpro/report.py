@@ -10,10 +10,11 @@ value came from.
 Without this seam, adding telnet means either a second state model or transport types leaking up
 into the entities. With it, the transports are the only code that knows the difference.
 
-**Complete versus partial matters.** A telnet push carrying only ``OUT1 VS IN2`` says nothing
-about the other three outputs, so it must not be allowed to blank them. A full ``GET STA`` does
-describe the whole device, so a field it omits is genuinely absent. Conflating the two would make
-every push erase most of the state.
+**What ``complete`` means.** Only this: enough has been read to create entities from. It is *not*
+a licence to clear fields the report omits, because no single report is ever authoritative about
+the whole device -- telnet's ``GET STA`` knows nothing of the port names, and the HTTP census
+knows nothing of the output stream state. Clearing on absence would have each transport erase the
+other's contribution on every cycle. :func:`avpro.state.apply` therefore only ever merges.
 """
 
 from __future__ import annotations
@@ -29,8 +30,8 @@ class DeviceReport:
 
     values: Mapping[str, Any] = field(default_factory=dict)
 
-    #: True when this describes the *whole* device -- a ``GET STA`` or a full HTTP census. False
-    #: for an unsolicited push or a single-endpoint read, which speak only about what they name.
+    #: True when this is a census -- a ``GET STA`` or a full HTTP read -- meaning enough has been
+    #: gathered to create entities from. False for an unsolicited push or a single-endpoint read.
     complete: bool = False
 
     def __bool__(self) -> bool:
@@ -46,9 +47,9 @@ class DeviceReport:
         """Combine two reports, ``other`` winning where they overlap.
 
         Used to assemble one report from several endpoint reads on the HTTP path, and to fold
-        successive telnet lines into a single update. The result is complete only if some
-        contributing report was complete -- merging two partial views of a device does not add up
-        to knowing the whole of it.
+        successive telnet lines into a single update. The result counts as a census only if some
+        contributing report was one -- merging two partial views does not add up to having read
+        the device.
         """
         return DeviceReport(
             values={**self.values, **other.values},
