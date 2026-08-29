@@ -162,7 +162,18 @@ class SupplementedTransport:
         return report.merge(await self._read_signal())
 
     async def async_refresh(self) -> DeviceReport:
-        return await self._primary.async_refresh()
+        """The primary's read, with signal folded in.
+
+        Signal is included even though a timer already polls it. "Whatever is due now" is what a
+        refresh means, and signal -- the one value here that never pushes -- is due on every
+        single one. Leaving it out made the timer the *only* path to a fresh reading, so an
+        explicit refresh returned stale signal and the safety net stopped being a safety net for
+        the one field that most needed one.
+
+        The extra cost is one request per refresh, which on a pushing transport is once a minute.
+        """
+        report = await self._primary.async_refresh()
+        return report.merge(await self._read_signal())
 
     async def async_command(self, key: str, value: Any) -> None:
         """Everything writable belongs to the primary; signal is not writable on any wire."""

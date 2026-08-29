@@ -141,14 +141,39 @@ async def test_commands_go_to_the_primary_never_over_http(session) -> None:
             await transport.async_disconnect()
 
 
-async def test_the_refresh_is_telnet_only(session) -> None:
-    """The safety-net read is the primary's. Signal has its own timer, on its own cadence."""
+async def test_the_refresh_picks_up_a_signal_change(session) -> None:
+    """A refresh means "read whatever is due", and signal is due on every one.
+
+    The first version of this class left signal out of ``async_refresh``, on the reasoning that a
+    timer already polls it. That made the timer the only path to a fresh reading: an explicit
+    refresh returned stale signal, and the 60 s safety net stopped covering the one field that
+    never pushes. CI caught it as an output still reporting "on" after every source went dark.
+    """
+    async with FakeMatrix() as fake:
+        transport, _ = await _supplemented(session, fake)
+        try:
+            census = await transport.async_read_all()
+            assert census.values["signal_1"], "the fake should start with a live signal"
+
+            fake.state.signals = ["", "", "", ""]
+            report = await transport.async_refresh()
+
+            assert not report.values["signal_1"], "the refresh returned a stale signal"
+            # And it is still the primary that answers for everything telnet owns.
+            assert report.values["video_route_1"] == 1
+        finally:
+            await transport.async_disconnect()
+
+
+async def test_the_refresh_reads_signal_and_nothing_else_over_http(session) -> None:
+    """One endpoint. Anything else would be the hedging the transport rule forbids."""
     async with FakeMatrix() as fake:
         transport, _ = await _supplemented(session, fake)
         try:
             fake.requests.clear()
             await transport.async_refresh()
-            assert fake.requests == []
+            endpoints = {r.split("?")[0] for r in fake.requests}
+            assert endpoints == {"INFDivSta.CGI"}, f"unexpected HTTP traffic: {fake.requests}"
         finally:
             await transport.async_disconnect()
 
