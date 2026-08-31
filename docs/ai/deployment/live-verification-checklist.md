@@ -60,11 +60,28 @@ endpoint happens to be due.
 
 ## Out-of-band change (T-L3) — **passed, 0.538 s**
 
-| # | Check | Expected |
+| # | Check | Result |
 |---|---|---|
-| O1 | Change a route from the matrix's **web page** | HA reflects it in **under 2 s** |
-| O2 | Change a route from the matrix's **front panel** | Same |
-| O3 | Watch the log during a quiet minute | No repeated warnings, no poll spam |
+| O1 | Change a route from the matrix's **web page** | ✅ **0.538 s** (0.549 s on the restore) |
+| O2 | Change a route from the matrix's **front panel** | ✅ **Pushes.** Reflected within ~1 s of the press |
+| O3 | Watch the log during a quiet minute | ✅ 3 minutes, ~144 signal polls, **zero** state writes |
+
+**O2, 2026-08-29.** A front-panel route change reached Home Assistant at `16:28:36.083` against a
+press reported at `16:28:37` — nominally *before* it, which is clock skew between the operator's
+watch and the instance, not a measurable latency. No figure is claimed from it.
+
+What it does settle is the mechanism, and that was the open question: a 60 s safety-net poll lands
+uniformly 0–60 s *after* a change, expected value ~30 s. Landing within a second of the press, on
+either side, is only consistent with the device announcing it over the control port. **The front
+panel is not silent**, so a route changed at the rack appears immediately rather than up to a
+minute later.
+
+> **The first attempt measured nothing, and the tool was the reason.** `tools/ha_watch.py` compared
+> `state`, and a route change does not move a `media_player`'s state — it stays `on`. The route is
+> an *attribute*. The same trap caught the history query, which keyed on `last_changed`; Home
+> Assistant moves that only for the state string, and an attribute-only update moves
+> `last_updated`. So the change was invisible in both, and the entity looked untouched while its
+> route had moved. Both now compare attributes and use `last_updated`.
 
 O1 is the strongest single test in this list: it exercises telnet push, the parser, the report
 seam, the coordinator and the entity in one motion, and it is the thing HTTP polling could never do.

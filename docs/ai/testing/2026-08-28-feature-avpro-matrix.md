@@ -161,9 +161,12 @@ dependency when nothing is left that only the driver can do.
       its own could not distinguish the matrix acting from the pending overlay publishing, since
       both produce an identical `off`/`on` pair with the same final value. Nothing on either wire
       reports whether the source noticed — a person watching the screen does.*
-- [ ] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON* — the option
-      count is measured, but the labels come from the vendor driver's list order and cannot be
-      observed over either wire
+- [x] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON*
+      *2026-08-29: `T1` went dark at ~15 s and `T3` at ~60 s, which pins both ends of the range;
+      `T0` was still lit well past 90 s, longer than the longest timeout that exists, so it is
+      not a timeout at all. **Always ON confirmed**, and `T2` = 30 s follows by elimination — four
+      values, four labels, both ends fixed, and the middle has nowhere else to go. The list order
+      came from AVPro's own driver and is now measured rather than trusted.*
 - [x] T-L8 Unplug a source and see what the matrix reports for that input
       *2026-08-29: **`NO SIGNAL`**, as a literal string — at 14:25:12 ET on the unplug, and the
       format string back at 14:26:34 on the replug. The question was framed as whether a blank

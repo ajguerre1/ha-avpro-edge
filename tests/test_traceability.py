@@ -55,7 +55,6 @@ RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
 #:   T-L4 pulls power). They are checked off by hand in the doc, with evidence.
 DEFERRED: dict[str, str] = {
     "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
-    "T-L6": "live tier: the LCD backlight timeout is only observable by a person at the matrix",
 }
 
 #: Live scenarios that have been run against real hardware, and what was observed.
@@ -86,6 +85,13 @@ VERIFIED_LIVE: dict[str, str] = {
         "settle window -- so it was device truth rather than a remembered write, which is the "
         "whole reason telnet is primary. media_player reached OFF, the branch only stream can "
         "reach. Input signal was unaffected throughout, which also settles probe P10."
+    ),
+    "T-L6": (
+        "2026-08-29: timed the front panel backlight with someone standing at the matrix. T1 went "
+        "dark at ~15 s and T3 at ~60 s, pinning both ends of the range, and T0 stayed lit well "
+        "past 90 s -- longer than the longest timeout that exists, so it is not a timeout. "
+        "'Always ON' confirmed, and T2 = 30 s follows by elimination. The four labels came from "
+        "the vendor driver's list order and are now measured rather than inferred."
     ),
     "T-L7": (
         "2026-08-29: pressed input 3's hot plug reset with a person watching the display. TMDS "

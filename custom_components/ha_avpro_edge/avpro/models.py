@@ -163,18 +163,21 @@ class LcdTimeout(StrEnum):
 
     Telnet only: the CGI interface has no status endpoint for it.
 
-    **Two claims here with different evidence**, and the difference matters because these become
-    user-facing labels, where a wrong one is indistinguishable from a right one.
+    **Both claims here are now measured**, which was not true when this shipped.
 
-    *That there are exactly four* is **measured**. ``scripts/probe_lcd_keylock.py`` wrote
-    ``SET LCD ON T{n}`` for n in 0-5 against the live matrix and read each back from ``GET STA``:
-    0-3 accepted, 4 and 5 refused with the value staying at 3.
+    *That there are exactly four*: ``scripts/probe_lcd_keylock.py`` wrote ``SET LCD ON T{n}`` for
+    n in 0-5 against the live matrix and read each back from ``GET STA`` -- 0-3 accepted, 4 and 5
+    refused with the value staying at 3.
 
-    *What each one means* is **inferred**, from the manufacturer's own control-system driver, which
-    lists exactly these four in this order. Four labels mapping onto four accepted values in
-    order is good corroboration from the vendor's own source -- but a backlight timeout cannot be
-    observed over either wire, so confirming ``T0`` really is *always on* rather than *15 seconds*
-    needs a person at the front panel. Tracked as T-L6.
+    *What each one means* was **inferred** until 2026-08-29, from the manufacturer's own
+    control-system driver listing exactly these four in this order. Good corroboration, and still
+    a guess: nothing on either wire can report a backlight, so an off-by-one in the list order
+    would have produced four confidently wrong user-facing labels with no way to notice.
+
+    Settled by a person standing at the matrix (T-L6). ``T1`` went dark at ~15 s and ``T3`` at
+    ~60 s, pinning both ends; ``T0`` stayed lit well past 90 s -- longer than the longest timeout
+    in the set, so it is not a timeout. ``T2`` = 30 s follows by elimination, four values against
+    four labels with both ends fixed.
     """
 
     ALWAYS_ON = "always_on"
