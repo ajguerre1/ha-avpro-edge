@@ -46,13 +46,16 @@ RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
 
 #: Scenarios that are declared but not yet implemented, each with the reason it is not.
 #:
-#: Every entry here is a promise, not an excuse -- and it is a promise the suite can see. Two
-#: categories, and the distinction matters:
+#: **Empty, as of 2026-08-29.** Every declared scenario is now either implemented in CI or carries
+#: a dated observation in :data:`VERIFIED_LIVE`. This dict was written to shrink and it has:
+#: the last entries were the live tier -- blanking a display, cutting power, timing a front-panel
+#: backlight, unplugging a source -- and each of them needed a person at the hardware rather than
+#: more code. Between them they found five defects that CI could not have reached.
 #:
-#: * **M-E** is ordinary outstanding work. These become tests when the entities land.
-#: * **T-L** is the live tier. These cannot run in CI by construction: they need the real matrix,
-#:   and several of them are disruptive enough to need someone present (T-L2 blanks a display;
-#:   T-L4 pulls power). They are checked off by hand in the doc, with evidence.
+#: It is kept rather than deleted. The next declared scenario that cannot be implemented straight
+#: away belongs here with its reason, and an empty dict is the honest starting point for that --
+#: silence about a gap is exactly what this module exists to make impossible. Every entry is a
+#: promise, not an excuse, and it is a promise the suite can see.
 DEFERRED: dict[str, str] = {}
 
 #: Live scenarios that have been run against real hardware, and what was observed.
