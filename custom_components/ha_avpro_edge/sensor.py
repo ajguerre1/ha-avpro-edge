@@ -6,8 +6,15 @@ fields: any set of values written today is a bug on tomorrow's firmware, and thi
 vocabulary is not documented anywhere. Passing it through means a format nobody anticipated shows
 up as itself rather than as "unknown".
 
-Whether the four fields describe inputs or outputs is not established from the CGI interface
-alone, so they are labelled by port index rather than asserting one or the other.
+**The four fields describe inputs.** Established 2026-08-29 by two observations that would have
+come out reversed had they been outputs: unplugging the *source* on input 3 drove field 3 to
+``NO SIGNAL`` (T-L8), and muting *output* 3's stream left field 3 unchanged (T-L2). The planning
+docs carried this as open probe P10, unanswerable from the CGI interface alone -- and it was,
+because reading the interface was never going to settle it. Only moving one end of the wire did.
+
+The entities are still labelled by port index rather than "Input N". Renaming them now would
+change entity ids that are already on dashboards, for a naming improvement rather than a
+correctness one. The hedge is no longer load-bearing; it is just the name it shipped with.
 """
 
 from __future__ import annotations

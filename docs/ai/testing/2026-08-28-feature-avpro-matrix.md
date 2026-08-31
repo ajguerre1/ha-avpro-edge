@@ -138,7 +138,12 @@ dependency when nothing is left that only the driver can do.
 - [x] T-L1 Route a real output over telnet; observe the change and restore it
       *2026-08-29: output 1 to input 3 and back from Home Assistant. The matrix agreed both
       times, exactly one state change per write, routing restored bit for bit.*
-- [ ] T-L2 Toggle `OUT1 STREAM` and confirm it reads back — the capability HTTP could not offer
+- [x] T-L2 Toggle an output's `STREAM` and confirm it reads back — the capability HTTP could not offer
+      *2026-08-29: the display went black and came back. The switch held `off` for **12.5 s**,
+      eight times the 1.5 s overlay settle window, so what it reported was the device rather than
+      a remembered write — which is the entire argument for telnet being primary, since the CGI
+      interface can write this and cannot read it. `media_player` reached `OFF`, the one branch
+      only stream can produce. The input's signal was unaffected throughout.*
 - [x] T-L3 Change a route from the matrix's web page; confirm Home Assistant reflects it in < 2 s (S2)
       *2026-08-29: driven over the CGI interface so Home Assistant learned of it only by push.
       **0.538 s**, and 0.549 s on the restore. The two agreeing to 11 ms says the path is
@@ -149,10 +154,13 @@ dependency when nothing is left that only the driver can do.
       *2026-08-29: config entry loaded, 55 entities registered (4 media_player, 4 sensor,
       4 binary_sensor, 17 switch, 22 select, 4 button), 12 enabled, device identified as
       AC-MX44-AUHD V1.41. No repair issue raised, so the fallback path did not trigger.*
-- [ ] T-L7 Press a hot plug reset against a source that has settled wrongly, and confirm it
-      renegotiates — `HOT_PLUG_RESET_HOLD` is the one timing constant here that is not measured,
-      because how long a hot-plug line must drop is a property of the *source*, and nothing on
-      either wire can report whether it noticed
+- [x] T-L7 Press a hot plug reset and confirm the source renegotiates
+      *2026-08-29: TMDS off at +36 ms, on again **1002 ms** later — the first measurement of
+      `HOT_PLUG_RESET_HOLD`, which was 1.0 s by convention and is now 1.0 s by observation. The
+      display went black and recovered, and that is the part that settles it: the state trace on
+      its own could not distinguish the matrix acting from the pending overlay publishing, since
+      both produce an identical `off`/`on` pair with the same final value. Nothing on either wire
+      reports whether the source noticed — a person watching the screen does.*
 - [ ] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON* — the option
       count is measured, but the labels come from the vendor driver's list order and cannot be
       observed over either wire

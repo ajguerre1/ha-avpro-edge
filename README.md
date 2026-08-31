@@ -140,7 +140,13 @@ data:
 ```
 
 **Send command** passes a command straight to the matrix, for anything this integration does not
-already cover. It hands back whatever the matrix replied, so you can tell whether it was accepted.
+already cover. It hands back whatever the matrix replied.
+
+**Read that reply carefully — it is not proof the matrix did anything.** The reply echoes the
+change you asked for, and the matrix does not always apply it: a command it does not support on
+your firmware can come back looking exactly like one that worked. The reply is worth having
+because a flat refusal does show up in it, but the only way to know something took effect is to
+look at the control afterwards, or at the matrix's own web page.
 
 ```yaml
 action: ha_avpro_edge.send_command

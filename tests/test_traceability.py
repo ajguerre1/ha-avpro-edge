@@ -54,10 +54,8 @@ RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
 #:   and several of them are disruptive enough to need someone present (T-L2 blanks a display;
 #:   T-L4 pulls power). They are checked off by hand in the doc, with evidence.
 DEFERRED: dict[str, str] = {
-    "T-L2": "live tier: toggling OUT1 STREAM blanks a display -- someone must be watching it",
     "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
     "T-L6": "live tier: the LCD backlight timeout is only observable by a person at the matrix",
-    "T-L7": "live tier: only a real source can show whether it noticed the hot-plug drop",
 }
 
 #: Live scenarios that have been run against real hardware, and what was observed.
@@ -81,6 +79,20 @@ VERIFIED_LIVE: dict[str, str] = {
     "T-L5": (
         "2026-08-29: installed from HACS as a custom repository on the live instance. Entry "
         "loaded, 55 entities registered, 12 enabled, identified as AC-MX44-AUHD V1.41 (S3)."
+    ),
+    "T-L2": (
+        "2026-08-29: turned an output's stream off with someone watching that display. It went "
+        "black and came back. The switch held 'off' for 12.5 s -- eight times the 1.5 s overlay "
+        "settle window -- so it was device truth rather than a remembered write, which is the "
+        "whole reason telnet is primary. media_player reached OFF, the branch only stream can "
+        "reach. Input signal was unaffected throughout, which also settles probe P10."
+    ),
+    "T-L7": (
+        "2026-08-29: pressed input 3's hot plug reset with a person watching the display. TMDS "
+        "off at +36 ms and on again 1002 ms later against a nominal HOT_PLUG_RESET_HOLD of 1.0 s "
+        "-- the first measurement of that constant. The screen went black and recovered, which is "
+        "what settles it: the state trace alone could not tell the matrix acting from the "
+        "optimistic overlay publishing, because both produce an identical off/on pair."
     ),
     "T-L8": (
         "2026-08-29: unplugged a source. The matrix reports a dark port as the literal string "

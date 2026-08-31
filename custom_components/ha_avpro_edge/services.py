@@ -117,6 +117,17 @@ def async_register_services(hass: HomeAssistant) -> None:
         unsupported command with ``NO SUPPORT`` and a *200*, so without the raw body a user
         experimenting with an unmodelled command has no way to tell "it worked" from "it was
         politely ignored".
+
+        **It is still not confirmation, and the asymmetry is worth stating.** A refusal shows up
+        here; an acceptance does not mean the matrix did anything. Measured 2026-08-29: setting an
+        input's EDID to copy from an output returned ``supported: true``, ``outcome: ok`` and a
+        body echoing the new value -- and every independent read for the next 45 seconds showed
+        the old one. The reply reflects the request, not the device.
+
+        Which is why nothing downstream trusts it. Every modelled write confirms by value from a
+        later read, and the pending overlay expires to device truth rather than re-asserting. That
+        design was built against a fake fault named ``never-apply``; this is the first time real
+        hardware has been seen doing it.
         """
         runtime = _runtime(hass, call.data[ATTR_ENTRY])
         endpoint = ALLOWED_ENDPOINTS[call.data[ATTR_ENDPOINT]]
