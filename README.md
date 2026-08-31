@@ -148,6 +148,12 @@ your firmware can come back looking exactly like one that worked. The reply is w
 because a flat refusal does show up in it, but the only way to know something took effect is to
 look at the control afterwards, or at the matrix's own web page.
 
+> **A command that does not stick can still interrupt your video.** One tried during testing
+> blanked a television, undid itself, and left no sign of any of it — the matrix reported normal
+> throughout. Treat this as capable of disturbing what people are watching, use it when you can
+> see the screens you might affect, and do not take a normal-looking reading afterwards as
+> evidence that nothing happened.
+
 ```yaml
 action: ha_avpro_edge.send_command
 data:

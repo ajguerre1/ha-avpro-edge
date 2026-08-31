@@ -124,10 +124,22 @@ def async_register_services(hass: HomeAssistant) -> None:
         body echoing the new value -- and every independent read for the next 45 seconds showed
         the old one. The reply reflects the request, not the device.
 
-        Which is why nothing downstream trusts it. Every modelled write confirms by value from a
-        later read, and the pending overlay expires to device truth rather than re-asserting. That
-        design was built against a fake fault named ``never-apply``; this is the first time real
-        hardware has been seen doing it.
+        **And "did not persist" is not "did nothing", which is the part worth being afraid of.**
+        That same command took a display dark. It disrupted the HDMI chain hard enough for a
+        person standing in the room to see it, then reverted -- leaving no trace in the device's
+        reported state, none in the signal readings, and not one state change in Home Assistant.
+        Every source of telemetry available said the minute was uneventful.
+
+        So an unmodelled command here can be **disruptive and invisible at the same time**. The
+        first version of this note recorded the write as a no-op, on the strength of matrix
+        telemetry, and was wrong: the matrix's own readings are not a proxy for what is on a
+        screen. Treat anything sent through this action as capable of interrupting video, and do
+        not conclude otherwise from a clean read afterwards.
+
+        None of which the modelled writes depend on. Each confirms by value from a later read, and
+        the pending overlay expires to device truth rather than re-asserting. That design was
+        built against a fake fault named ``never-apply``; this is the first time real hardware has
+        been seen doing it.
         """
         runtime = _runtime(hass, call.data[ATTR_ENTRY])
         endpoint = ALLOWED_ENDPOINTS[call.data[ATTR_ENDPOINT]]
