@@ -70,8 +70,18 @@ class AvProEntity(CoordinatorEntity[AvProCoordinator]):
 
         Subclasses that expose attributes as well as a state must include them here, or an
         attribute-only change will never reach the UI.
+
+        ``available`` is in here because **every** entity renders it, and it was in none of them
+        except ``media_player``, which happened to include it in its own override. So when the
+        matrix went away, four entities went unavailable and fifteen went on displaying the last
+        value they had read, indefinitely, looking exactly like a healthy device. Measured by
+        cutting power to the real unit (P1): the media players reported the outage within 15 s and
+        nothing else ever did.
+
+        The gate is meant to suppress *redundant* writes, and an availability change is the least
+        redundant write there is -- it is the one that tells somebody the device is not answering.
         """
-        return self.coordinator.optimistic(self._key)
+        return (self.coordinator.optimistic(self._key), self.available)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

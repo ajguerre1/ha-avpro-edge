@@ -44,7 +44,7 @@ from .models import (
 )
 from .report import DeviceReport
 from .state import split_key
-from .transport import TransportCapabilities
+from .transport import TransportCapabilities, TransportError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,8 +93,13 @@ TELNET_READABLE: Final[frozenset[str]] = frozenset(
 TELNET_WRITABLE: Final[frozenset[str]] = TELNET_READABLE - {"address", "mac"}
 
 
-class TelnetError(Exception):
-    """The connection failed, or the device refused a command."""
+class TelnetError(TransportError):
+    """The connection failed, or the device refused a command.
+
+    Derives from :class:`TransportError` so the coordinator catches it without having to name this
+    wire. It used to derive from ``Exception``, and the coordinator named the HTTP types only --
+    so cutting power to the matrix raised straight past the handler on the primary transport.
+    """
 
 
 class TelnetBusy(TelnetError):
@@ -121,6 +126,8 @@ class TelnetTransport:
         self._subscribers: list[Callable[[DeviceReport], None]] = []
         self._census: asyncio.Future[DeviceReport] | None = None
         self._failures = 0
+        #: False once the read loop has ended, whatever ended it. See :attr:`connected`.
+        self._session_live = False
 
     # -- identity ------------------------------------------------------------------------
 
@@ -130,7 +137,16 @@ class TelnetTransport:
 
     @property
     def connected(self) -> bool:
-        return self._writer is not None and not self._writer.is_closing()
+        """Whether this session is actually usable, not merely whether we closed it.
+
+        ``_session_live`` is in here because the other two conditions only describe **our** end.
+        A device that loses power sends no FIN and may send nothing at all; our writer stays open
+        and un-closing, so a socket-state check reports a healthy connection to a matrix that is
+        no longer plugged in. The read loop is the thing that finds out -- through EOF, an error,
+        or a minute of silence on a wire that speaks every 8-16 s -- and until now it kept that
+        discovery to itself and simply returned.
+        """
+        return self._session_live and self._writer is not None and not self._writer.is_closing()
 
     @property
     def capabilities(self) -> TransportCapabilities:
@@ -173,6 +189,7 @@ class TelnetTransport:
             # problem from the device being busy and wants a different response.
             raise TelnetError(f"{self._host}: {err}") from err
 
+        self._session_live = True
         self._reader_task = asyncio.create_task(self._read_loop())
 
         try:
@@ -231,6 +248,16 @@ class TelnetTransport:
         """
         assert self._reader is not None
         buffer: list[str] = []
+        try:
+            await self._read_until_the_session_ends(buffer)
+        finally:
+            # Whatever ended it -- EOF, error, silence, cancellation -- the session is over, and
+            # `connected` has to say so. This loop used to return in silence, leaving every
+            # caller believing the wire was fine.
+            self._session_live = False
+
+    async def _read_until_the_session_ends(self, buffer: list[str]) -> None:
+        assert self._reader is not None
 
         while True:
             try:
@@ -284,8 +311,44 @@ class TelnetTransport:
 
     # -- the transport contract ----------------------------------------------------------
 
+    async def _async_ensure_connected(self) -> None:
+        """Reconnect if the session has gone, respecting the backoff ladder.
+
+        **This is the reconnect that was declared and never wired.** ``BACKOFF`` and
+        :meth:`backoff_delay` were written with the client, and nothing ever called them: the read
+        loop returns on EOF, silence or error, and no code path restarted it. So losing the
+        session was permanent. A matrix that rebooted left the integration reporting
+        ``TelnetError: not connected`` every 60 seconds for ever, on the transport it had chosen,
+        without falling back and without recovering -- until somebody reloaded it by hand.
+
+        Measured by cutting power to the real unit (P2): entities recovered once, then went
+        unavailable 80 seconds later and stayed that way. The transport never fell back to HTTP,
+        so ``async_watch_for_telnet`` -- which starts only after a fallback -- was not running
+        either. Nothing was watching, because everything believed it was already connected.
+
+        No background task and no new lifecycle. The coordinator already calls this wire on a
+        60 s safety net, and the ladder tops out at 60 s, so the poll *is* the retry clock. A
+        failure here raises, which reaches the coordinator as ``UpdateFailed``, marks entities
+        unavailable and logs once -- and the next tick tries again.
+        """
+        if self.connected:
+            return
+
+        delay = self.backoff_delay()
+        _LOGGER.debug(
+            "%s: telnet session gone, reconnecting (attempt %d)", self._host, self._failures
+        )
+        # Drop whatever is left of the old session first. Reconnecting over a half-open one is how
+        # a client ends up holding two sockets against a device that allows one.
+        await self.async_disconnect()
+        try:
+            await self.async_connect()
+        except TelnetError as err:
+            raise TelnetError(f"{self._host}: reconnect failed, retrying in ~{delay:.0f}s") from err
+
     async def async_read_all(self) -> DeviceReport:
         """``GET STA`` -- the whole device in one command."""
+        await self._async_ensure_connected()
         if not self.connected:
             raise TelnetError(f"{self._host}: not connected")
 

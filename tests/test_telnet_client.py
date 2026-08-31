@@ -145,16 +145,26 @@ async def test_nothing_listening_is_a_plain_error_not_busy() -> None:
         assert not isinstance(caught.value, TelnetBusy)
 
 
-async def test_a_dropped_idle_connection_is_noticed() -> None:
-    """The client must not sit on a dead socket believing it is connected."""
+async def test_a_dropped_idle_connection_is_noticed_and_recovered() -> None:
+    """The client must not sit on a dead socket believing it is connected.
+
+    This asserted that the next read **raises**, which was the honest description of the client
+    at the time and is no longer the behaviour worth having. Noticing was only ever half the job:
+    the client noticed and then stayed dead, so on the real matrix a reboot left every entity
+    unavailable until somebody reloaded the entry by hand (P2).
+
+    A read against a dropped session now reconnects and returns data. The failure this guards
+    against is the same one either way -- a read hanging for ever on a socket nobody is on the
+    other end of.
+    """
     async with FakeMatrix(faults={"telnet-drops-idle"}) as fake:
         transport = await _connected(fake)
         try:
             await asyncio.sleep(2.5)  # past the fake's idle cutoff
-            # The writer may not know the peer has gone -- TCP does not always say so until a
-            # write fails. What must not happen is a read hanging forever on a dead socket.
-            with pytest.raises(TelnetError):
-                await transport.async_read_all()
+            assert not transport.connected, "sat on a dead socket believing it was connected"
+
+            report = await transport.async_read_all()
+            assert report.values, "noticed the drop and then gave up rather than reconnecting"
         finally:
             await transport.async_disconnect()
 
@@ -484,5 +494,94 @@ async def test_backoff_resets_after_a_successful_connect() -> None:
         await transport.async_connect()
         try:
             assert transport.backoff_delay() < 2.0  # back to the bottom of the ladder
+        finally:
+            await transport.async_disconnect()
+
+
+# ---------------------------------------------------------------------------------------------
+# Surviving a device that goes away -- the reconnect that was declared and never wired
+# ---------------------------------------------------------------------------------------------
+#
+# `BACKOFF` and `backoff_delay()` shipped with this client and nothing ever called them. The read
+# loop returned on EOF, silence or error and no code path restarted it, so losing the session was
+# permanent: a matrix that rebooted left the coordinator raising `not connected` every 60 s
+# for ever, on the transport it had chosen, without falling back and without recovering.
+#
+# Found by cutting power to the real unit (P2). Entities recovered once and went unavailable
+# again 80 s later. The transport never fell back to HTTP, so `async_watch_for_telnet` -- which
+# starts only after a fallback -- was not running either. Nothing was watching, because
+# everything believed it was still connected.
+
+
+async def test_the_session_is_reported_dead_once_the_peer_stops_talking() -> None:
+    """`connected` used to describe only our end of the socket.
+
+    A device losing power sends no FIN and may send nothing at all, so our writer stays open and
+    un-closing while the matrix is unplugged. The read loop is what finds out -- and it used to
+    keep that to itself and simply return.
+    """
+    async with FakeMatrix(faults={"telnet-drops-idle"}) as fake:
+        transport = await _connected(fake)
+        try:
+            assert transport.connected
+
+            # The fault closes the session after ~2 s of quiet, which is what a device going away
+            # looks like from here.
+            for _ in range(60):
+                await asyncio.sleep(0.1)
+                if not transport.connected:
+                    break
+
+            assert not transport.connected, "the transport still claims a session that is gone"
+        finally:
+            await transport.async_disconnect()
+
+
+async def test_a_refresh_reconnects_rather_than_failing_for_ever() -> None:
+    """The behaviour P2 exists to prove, and the one that was missing.
+
+    The coordinator polls this wire on a 60 s safety net and the backoff ladder tops out at 60 s,
+    so the poll *is* the retry clock -- no background task, no new lifecycle. What matters is that
+    a refresh against a dropped session comes back with data instead of raising for ever.
+    """
+    async with FakeMatrix() as fake:
+        transport = await _connected(fake)
+        try:
+            # Kill the session underneath it, exactly as a power cut would.
+            await fake.drop_telnet_session()
+            for _ in range(60):
+                await asyncio.sleep(0.1)
+                if not transport.connected:
+                    break
+            assert not transport.connected
+
+            report = await transport.async_refresh()
+
+            assert transport.connected, "the refresh did not re-establish the session"
+            assert report.values, "reconnected but returned nothing"
+            assert report.complete, "the reconnect should yield a full census"
+        finally:
+            await transport.async_disconnect()
+
+
+async def test_the_backoff_ladder_is_actually_driven_now() -> None:
+    """Guards against the ladder going back to being decoration.
+
+    `backoff_delay` mutates `_failures`, so a reconnect attempt has to move it. The whole defect
+    was a ladder nothing climbed.
+    """
+    async with FakeMatrix() as fake:
+        transport = await _connected(fake)
+        try:
+            await fake.drop_telnet_session()
+            for _ in range(60):
+                await asyncio.sleep(0.1)
+                if not transport.connected:
+                    break
+            before = transport._failures
+            await transport.async_refresh()
+            assert transport._failures != before or transport.connected, (
+                "the reconnect path was not entered at all"
+            )
         finally:
             await transport.async_disconnect()

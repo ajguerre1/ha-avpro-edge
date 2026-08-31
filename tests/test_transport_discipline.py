@@ -212,6 +212,82 @@ def test_every_transport_satisfies_the_contract() -> None:
         assert not missing, f"{name} is missing {missing}"
 
 
+def test_every_wires_failure_derives_from_the_one_the_coordinator_catches() -> None:
+    """The hole a power cut found, closed by construction rather than by remembering.
+
+    The coordinator holds a ``Transport`` and is not supposed to know which wire it has. It
+    nonetheless caught ``AvProConnectionError`` and ``UnsupportedCommand`` by name -- both from
+    the HTTP path, written when HTTP was the only wire. Telnet became primary and ``TelnetError``
+    was never added, so switching the matrix off raised straight past the handler on the transport
+    almost every installation uses: no ``UpdateFailed``, no once-per-outage warning, and a
+    traceback logged as ``Unexpected error fetching data``.
+
+    Discovered rather than listed, for the same reason as T-T1: naming the types is exactly the
+    habit that let one go missing.
+    """
+    import importlib
+    import inspect
+
+    from avpro.transport import TransportError
+
+    offenders: list[str] = []
+    examined: list[str] = []
+    for path in sorted((COMPONENT / "ha_avpro_edge" / "avpro").glob("*.py")):
+        if path.stem.startswith("_"):
+            continue
+        module = importlib.import_module(f"avpro.{path.stem}")
+        for name, obj in vars(module).items():
+            if not (inspect.isclass(obj) and obj.__module__ == module.__name__):
+                continue
+            if not issubclass(obj, Exception):
+                continue
+            examined.append(name)
+            if issubclass(obj, TransportError):
+                continue
+            # A connection failure is what must be catchable. A refusal or a misuse is a
+            # different thing and is allowed to be its own type.
+            if any(word in name for word in ("Connection", "Telnet", "Busy", "Transport")):
+                offenders.append(f"{module.__name__}.{name}")
+
+    assert not offenders, (
+        "these describe a wire failing but do not derive from TransportError, so the "
+        f"coordinator will not catch them: {offenders}"
+    )
+
+
+def test_the_coordinator_does_not_name_individual_wires_when_catching() -> None:
+    """Guards the fix above: re-adding a by-name catch would silently narrow it again.
+
+    Parsed, not grepped. The first version searched the function's text and failed against its own
+    docstring, which names the very types it forbids -- because explaining a mistake requires
+    saying what it was. A guard that cannot tell prose from code would have to be satisfied by
+    never writing down what went wrong, which is the opposite of what this repository does.
+    """
+    import ast
+
+    source = (COMPONENT / "ha_avpro_edge" / "coordinator.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    handlers: list[ast.ExceptHandler] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "_async_update_data":
+            handlers = [n for n in ast.walk(node) if isinstance(n, ast.ExceptHandler)]
+    assert handlers, "no except clause found; this check would be vacuous"
+
+    caught: set[str] = set()
+    for handler in handlers:
+        target = handler.type
+        parts = target.elts if isinstance(target, ast.Tuple) else [target]
+        caught |= {p.id for p in parts if isinstance(p, ast.Name)}
+
+    assert "TransportError" in caught, f"the base is not caught; only {sorted(caught)}"
+    named_wires = caught & {"AvProConnectionError", "TelnetError", "TelnetBusy"}
+    assert not named_wires, (
+        f"{sorted(named_wires)} caught by name again. Catch TransportError instead, or the next "
+        "wire's failures go unhandled the way telnet's did"
+    )
+
+
 def test_the_contract_covers_what_callers_actually_use() -> None:
     """Anything reached through `transport.` in the integration or its tests has to be declared.
 

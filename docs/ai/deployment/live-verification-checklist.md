@@ -98,13 +98,47 @@ seam, the coordinator and the entity in one motion, and it is the thing HTTP pol
 
 W5 is the settle-window measurement (25–404 ms, window 1.0 s) meeting reality.
 
-## Recovery (T-L4) — **not run**
+## Recovery (T-L4) — **run 2026-08-29, and it failed**
 
-| # | Check | Expected |
+Power cut at 16:32:30, restored at 16:33:30. The most productive sixty seconds of the pass: it
+found three defects, two of them serious, and none of them reachable from CI.
+
+| # | Check | Result |
 |---|---|---|
-| P1 | Power the matrix off | Entities go `unavailable`, one warning in the log — not one per 5 s |
-| P2 | Power it back on | Recovers with **no Home Assistant restart** |
-| P3 | Check Repairs during the outage | A telnet repair issue may appear; it must clear itself on recovery |
+| P1 | Power the matrix off | ❌ **Failed.** Entities went `unavailable` in 15.4 s — but only four of nineteen, and the log carried a traceback, not the warning |
+| P2 | Power it back on | ❌ **Failed.** Recovered at +6.3 s, then died again 80 s later and stayed dead until a manual reload |
+| P3 | Repairs during the outage | Not reached — the entry never fell back, so no repair issue was raised |
+
+### What broke, and why nothing caught it
+
+**The coordinator did not catch telnet's errors at all.** It named `AvProConnectionError` and
+`UnsupportedCommand`, both from the HTTP path, written when HTTP was the only wire. Telnet became
+primary and nobody revisited the handler. So on the transport almost every installation uses, a
+device being switched off raised straight through: no `UpdateFailed`, no once-per-outage warning,
+and `Unexpected error fetching data` with a traceback — which describes a bug in this integration
+rather than a matrix somebody unplugged. `log-when-unavailable` was marked **done** and its code
+had never executed. Fixed by a `TransportError` base every wire's failures derive from, so the
+coordinator catches the contract instead of naming wires.
+
+**Fifteen of nineteen entities lied about being available.** `_state_snapshot` omitted
+`available`, so the change gate suppressed the write that says the device is gone. Only
+`media_player` reported the outage, because it happened to include `available` in its own
+override. Everything else went on displaying its last reading, indefinitely, looking healthy.
+
+**The telnet client never reconnected.** `BACKOFF` and `backoff_delay()` shipped with it and
+nothing ever called them — a ladder nothing climbed. The read loop returned on EOF, silence or
+error and no path restarted it, so losing a session was permanent. Worse, `connected` described
+only our end of the socket: a device losing power sends no FIN, so the writer stayed open and the
+transport reported a healthy connection to an unplugged matrix. It never fell back to HTTP either,
+so `async_watch_for_telnet` — which starts only after a fallback — was not running. Nothing was
+watching, because everything believed it was still connected.
+
+> **This is the shape that keeps recurring.** Every one of the three lives on a path that only
+> runs once something has already gone wrong, which is the class nothing exercises until the day
+> it matters — the same class as `HttpTransport` having no `connected` attribute for seven
+> commits. A green suite says the model agrees with itself.
+
+Re-run required once the fixes are released. P3 in particular has still never been observed.
 
 ## Still outstanding — these need hands or eyes on the hardware
 

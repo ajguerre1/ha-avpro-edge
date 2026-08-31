@@ -450,6 +450,22 @@ class FakeMatrix:
         """Announce something unprompted, as the device does every 8-16 s."""
         await self._telnet_send(text)
 
+    async def drop_telnet_session(self) -> None:
+        """Kill the current telnet session from the device's side, leaving the listener up.
+
+        What a power cycle looks like to a client once the unit is back: the old session is gone
+        and a new one is accepted. Distinct from ``stop()``, which takes the whole device away,
+        and from the ``telnet-drops-idle`` fault, which keeps doing it.
+        """
+        writer, self._telnet_writer = self._telnet_writer, None
+        for task in list(self._telnet_tasks):
+            task.cancel()
+        self._telnet_tasks.clear()
+        if writer is not None:
+            writer.close()
+            with contextlib.suppress(Exception):
+                await writer.wait_closed()
+
     # -- request handling ----------------------------------------------------------------
 
     async def _handle(self, request: web.Request) -> web.Response:

@@ -82,6 +82,15 @@ rules:
   log-when-unavailable: done
     # Once per outage, not once per tick -- a matrix switched off overnight would otherwise write
     # an identical line every five seconds until morning.
+    #
+    # Marked done for weeks while the code path could not execute on the primary transport. The
+    # coordinator caught the HTTP client's exception types by name and telnet's was not among
+    # them, so an outage raised past the handler and Home Assistant logged a traceback reading
+    # "Unexpected error fetching data" -- a description of a bug in this integration rather than
+    # of a device that had been switched off. Found by cutting power to the real unit; a second
+    # false `done` on this file, after `diagnostics` at 0% coverage. Now catches TransportError,
+    # the base every wire's failures derive from, with a test that fails if any wire's connection
+    # error is defined outside it.
   parallel-updates: done
     # PARALLEL_UPDATES = 0 in every platform. Serialisation is already structural: the client
     # holds one lock across every request, so a per-platform semaphore would only add latency.

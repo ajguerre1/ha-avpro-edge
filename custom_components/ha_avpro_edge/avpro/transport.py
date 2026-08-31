@@ -17,6 +17,27 @@ from typing import Any, Protocol, runtime_checkable
 from .report import DeviceReport
 
 
+class TransportError(Exception):
+    """A wire failed. The base every transport's connection failure must derive from.
+
+    **This exists because its absence cost an outage its diagnosis.** The coordinator caught
+    ``AvProConnectionError`` and ``UnsupportedCommand`` -- both HTTP-path types, written when HTTP
+    was the only wire -- and telnet's ``TelnetError`` was not in the list. Telnet then became the
+    primary transport and nobody revisited the handler, so on the wire that carries almost every
+    installation, a device being switched off raised straight through: no ``UpdateFailed``, no
+    once-per-outage warning, and a full traceback logged at ERROR reading ``Unexpected error
+    fetching data`` -- which describes a bug in the integration, not a matrix somebody unplugged.
+
+    Measured 2026-08-29, by cutting power to the real unit. The entities did go unavailable, so
+    the fault was invisible from the outside; only the log said what had happened, and it said the
+    wrong thing.
+
+    The coordinator holds a ``Transport``. It is not supposed to know which wire it has, so it
+    cannot be expected to name each wire's exceptions -- naming them is what let one go missing.
+    Catching this base means the next transport is covered before it is written.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class TransportCapabilities:
     """What this wire can actually do, so entities are created from fact rather than hope.

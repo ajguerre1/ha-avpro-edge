@@ -37,6 +37,7 @@ import aiohttp
 
 from . import protocol as p
 from .protocol import CommandEndpoint, ParsedStatus, ParseOutcome, StatusEndpoint
+from .transport import TransportError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,11 +55,15 @@ class AvProError(Exception):
     """Base class for every error this client raises."""
 
 
-class AvProConnectionError(AvProError):
+class AvProConnectionError(AvProError, TransportError):
     """The unit could not be reached, timed out, or dropped the connection.
 
     Distinct from a parse failure: this means the transport failed, not that the device said
     something unexpected.
+
+    Also a :class:`TransportError`, so the coordinator can catch every wire's connection failure
+    without naming any of them. It already caught this one by name; telnet's equivalent was the
+    one missing, and naming types individually is how that happened.
     """
 
 

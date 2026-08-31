@@ -44,7 +44,7 @@ from .avpro.models import signal_present
 from .avpro.pending import PendingWrites
 from .avpro.report import DeviceReport
 from .avpro.state import MatrixState
-from .avpro.transport import Transport
+from .avpro.transport import Transport, TransportError
 from .const import (
     DOMAIN,
     HOT_PLUG_RESET_HOLD,
@@ -125,18 +125,34 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
     # -- reading -------------------------------------------------------------------------
 
     async def _async_update_data(self) -> MatrixState:
-        """Ask the transport for whatever is due, and fold it in."""
+        """Ask the transport for whatever is due, and fold it in.
+
+        Catches :class:`TransportError`, the base every wire's failures derive from, rather than
+        naming each wire's exception types. It used to name them -- ``AvProConnectionError`` and
+        ``UnsupportedCommand``, both from the HTTP path, written when HTTP was the only wire --
+        and telnet's ``TelnetError`` was never added when telnet became primary.
+
+        So on the transport that carries almost every installation, switching the matrix off
+        raised straight past this handler: no ``UpdateFailed``, no once-per-outage warning, and a
+        traceback logged at ERROR saying ``Unexpected error fetching data``, which describes a bug
+        in this integration rather than a device somebody unplugged. Entities still went
+        unavailable, so nothing looked wrong from outside -- only the log was wrong, and it was
+        wrong in the direction that sends someone hunting for a defect that is not there.
+
+        Found by cutting power to the real unit (P1). It is the same class of hole as
+        ``HttpTransport`` having no ``connected`` attribute: an error path belonging to the
+        fallback-or-failure case, which nothing exercises until the day it matters.
+        """
         try:
             report = (
                 await self.transport.async_read_all()
                 if not self._state.census_done
                 else await self.transport.async_refresh()
             )
-        except AvProConnectionError as err:
-            self._note_unavailable(str(err))
-            raise UpdateFailed(str(err)) from err
-        except UnsupportedCommand as err:
-            # Raised only for the hot endpoint; everything else degrades to a capability.
+        except (TransportError, UnsupportedCommand) as err:
+            # UnsupportedCommand is separate on purpose: it is not a wire failure but a refusal of
+            # the hot endpoint, which is the one refusal that has to fail an update rather than
+            # record a capability.
             self._note_unavailable(str(err))
             raise UpdateFailed(str(err)) from err
 
