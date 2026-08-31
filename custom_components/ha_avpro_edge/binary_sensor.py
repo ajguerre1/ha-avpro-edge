@@ -85,8 +85,18 @@ class AvProSignalPresent(AvProEntity, BinarySensorEntity):
             return None
         return signal_present(signals[self._port - 1])
 
-    def _state_snapshot(self) -> bool | None:
+    def _state_snapshot(self) -> tuple[bool | None, bool]:
         """What this entity renders -- **not** what its key says.
+
+        ``available`` is in the tuple because overriding this method opts out of the base class's
+        version, and the base is where it lives. The first version of this override returned
+        ``self.is_on`` alone, which fixed one bug and preserved another: the entity followed the
+        matrix correctly and then sat at ``on`` through a power cut, reporting a live picture on a
+        port belonging to an unplugged device. Measured on the hardware (P1) -- six entities went
+        unavailable together and this one did not.
+
+        A subclass that overrides a change gate inherits the whole responsibility, not the part it
+        was thinking about.
 
         The base implementation gates on ``coordinator.optimistic(self._key)``, and this entity's
         key is ``signal_present_N``, which no transport reports and no state ever contains. So the
@@ -100,4 +110,4 @@ class AvProSignalPresent(AvProEntity, BinarySensorEntity):
         for the first job, and silently wrong for the second. Nothing complained, because a change
         gate that never fires looks exactly like a value that never changes.
         """
-        return self.is_on
+        return (self.is_on, self.available)

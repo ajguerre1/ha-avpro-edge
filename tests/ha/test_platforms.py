@@ -164,3 +164,62 @@ async def test_an_unread_setting_renders_unknown_rather_than_a_plausible_default
     state = hass.states.get(entity_id)
     assert state is not None
     assert state.state != STATE_UNKNOWN  # the fake does report scaler settings
+
+
+# ---------------------------------------------------------------------------------------------
+# Every platform must admit an outage
+# ---------------------------------------------------------------------------------------------
+#
+# Found by cutting power to the real matrix (P1), twice. The first run: four of nineteen entities
+# went unavailable and fifteen went on displaying their last reading, indefinitely, looking like a
+# healthy device -- `_state_snapshot` omitted `available`, so the change gate suppressed the one
+# write that says the matrix is gone. The second run, after fixing the base class: six of seven,
+# because `binary_sensor` overrides the gate and its override dropped `available` again.
+#
+# A subclass that overrides a change gate inherits the whole responsibility, not the part it was
+# thinking about. Asserted behaviourally rather than by inspecting overrides, so a platform added
+# later is covered without anybody remembering this.
+
+
+async def test_every_platform_goes_unavailable_when_the_matrix_does(
+    hass: HomeAssistant, fake, loaded_entry
+) -> None:
+    """One entity per platform, driven through a real outage.
+
+    The per-platform sweep is the point. Checking a `media_player` alone passes on both of the
+    broken versions above, because `media_player` happened to include `available` in its own
+    override from the beginning -- it was the only entity telling the truth, and it looked like
+    proof that everything was.
+    """
+    registry = er.async_get(hass)
+    for entity in _registry_entries(hass, loaded_entry.entry_id):
+        if entity.disabled_by:
+            registry.async_update_entity(entity.entity_id, disabled_by=None)
+    await hass.config_entries.async_reload(loaded_entry.entry_id)
+    await hass.async_block_till_done()
+
+    entries = _registry_entries(hass, loaded_entry.entry_id)
+    by_platform: dict[str, str] = {}
+    for entity in entries:
+        by_platform.setdefault(entity.domain, entity.entity_id)
+    # button has no state to gate and is legitimately exempt.
+    by_platform.pop("button", None)
+    assert len(by_platform) >= 5, f"too few platforms to be meaningful: {sorted(by_platform)}"
+
+    for entity_id in by_platform.values():
+        assert hass.states.get(entity_id).state != STATE_UNAVAILABLE, entity_id
+
+    coordinator = loaded_entry.runtime_data.coordinator
+    await fake.stop()
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    still_pretending = [
+        entity_id
+        for entity_id in by_platform.values()
+        if hass.states.get(entity_id).state != STATE_UNAVAILABLE
+    ]
+    assert not still_pretending, (
+        "these kept reporting a value while the matrix was unreachable, which is the defect a "
+        f"power cut found twice: {still_pretending}"
+    )
