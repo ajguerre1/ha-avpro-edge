@@ -149,7 +149,21 @@ dependency when nothing is left that only the driver can do.
       **0.538 s**, and 0.549 s on the restore. The two agreeing to 11 ms says the path is
       consistent rather than lucky, and the figure decomposes as the mechanism predicts:
       ~300-400 ms for the device to announce, plus the client's 250 ms quiet-gather window.*
-- [ ] T-L4 Pull power to the matrix; confirm entities go unavailable and recover with no restart
+- [x] T-L4 Pull power to the matrix; confirm entities go unavailable and recover with no restart
+      *2026-08-29: **the first run failed and was the most productive minute of the pass.** Three
+      defects, all on paths that only run once something has already gone wrong: the coordinator
+      caught only the HTTP wire's exception types so a dead device logged a traceback instead of
+      the once-per-outage warning; the change gate omitted `available`, so 15 of 19 entities went
+      on reporting their last reading through the whole outage; and the telnet client never
+      reconnected, because `BACKOFF` and `backoff_delay()` shipped with it and nothing ever called
+      them.*
+      *Re-run on 0.3.0: unavailable at **13.7 s**, recovered at **10.6 s** and held — the previous
+      run had died again at +80 s. One warning, zero tracebacks. A seventh entity still lied and
+      is fixed in 0.3.1.*
+      *P3 could not be reached by cutting power at all — the repair issue is raised on fallback,
+      and with the reconnect working the transport stays on telnet throughout. Driven at the
+      mechanism instead, by holding the single control socket from another machine: issue raised
+      on the fallback, cleared itself 70 s after release, no video touched.*
 - [x] T-L5 Install from HACS as a custom repository, end to end (S3)
       *2026-08-29: config entry loaded, 55 entities registered (4 media_player, 4 sensor,
       4 binary_sensor, 17 switch, 22 select, 4 button), 12 enabled, device identified as

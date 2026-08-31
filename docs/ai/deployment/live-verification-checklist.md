@@ -107,7 +107,7 @@ found three defects, two of them serious, and none of them reachable from CI.
 |---|---|---|
 | P1 | Power the matrix off | ❌ **Failed.** Entities went `unavailable` in 15.4 s — but only four of nineteen, and the log carried a traceback, not the warning |
 | P2 | Power it back on | ❌ **Failed.** Recovered at +6.3 s, then died again 80 s later and stayed dead until a manual reload |
-| P3 | Repairs during the outage | Not reached — the entry never fell back, so no repair issue was raised |
+| P3 | Repairs during the outage | ✅ **Raised and cleared itself**, tested directly rather than via a power cut |
 
 ### What broke, and why nothing caught it
 
@@ -138,7 +138,54 @@ watching, because everything believed it was still connected.
 > it matters — the same class as `HttpTransport` having no `connected` attribute for seven
 > commits. A green suite says the model agrees with itself.
 
-Re-run required once the fixes are released. P3 in particular has still never been observed.
+### Re-run on 0.3.0 — P1 and P2 pass
+
+Power cut 16:57:00, restored 16:57:30. Unavailable at **16:57:13.7** (13.7 s), available again at
+**16:57:40.6** (10.6 s), and it **held** — the previous run had died again at +80 s. One
+`WARNING … is unreachable` and **zero** tracebacks, against a traceback and 4-of-19 before.
+
+Six of seven watched entities went unavailable together. The seventh was the signal binary sensor,
+still reporting a live picture on a port belonging to an unplugged matrix — because the override
+added that morning to fix its *frozen* gate returned `is_on` alone, and overriding the gate opts
+out of the base class where `available` lives. Fixing one defect preserved the other in the one
+entity that had an override. Fixed in 0.3.1 and guarded behaviourally: one entity per platform,
+driven through a real outage, all must go unavailable.
+
+> The per-platform sweep is what caught it. Checking a `media_player` alone passes on **both**
+> broken versions, because that platform included `available` in its own override from the start.
+> It was the only entity telling the truth and it looked exactly like proof that everything was.
+
+The same trace carried the first hardware confirmation of the `NO SIGNAL` work: the sensor read
+`NO SIGNAL` while the matrix was still booting and the binary sensor correctly went `off`, then
+both recovered when the source re-synced.
+
+### P3, tested directly — the mechanism, not the weather
+
+A power cut cannot exercise this. The repair issue is raised on **fallback to HTTP**, and with the
+reconnect working the transport stays on telnet throughout an outage, so there is nothing to
+raise. Both runs left P3 untouched for that reason.
+
+So it was driven at the mechanism instead. The matrix allows one telnet client, which makes the
+socket a thing that can be taken: disable the entry so Home Assistant releases it, hold it from
+another machine, re-enable. Home Assistant then wants telnet and cannot have it — which is exactly
+the fault the repair issue describes, with **no video impact at all**, since routing continues over
+HTTP and no display is touched.
+
+| Time | Observed |
+|---|---|
+| 17:08:49 | Socket held elsewhere; entry re-enabled |
+| 17:09:09 | Fell back to HTTP, **7 entities unavailable** — precisely the telnet-only ones |
+| 17:09:09 | **Repair issue raised**, severity warning, not fixable, key `telnet_unavailable` |
+| 17:09:59 | Socket released 50 s earlier → **issue cleared itself**, 19 entities back |
+
+Recovery ~70 s from release: the 60 s re-check plus a reload. Every branch is now observed —
+raised on an unwanted fallback, not raised when HTTP is chosen deliberately, and cleared without
+anyone touching it.
+
+Worth recording separately: a second telnet connection while Home Assistant holds the socket is
+**refused** (`ECONNREFUSED`), not timed out. The design anticipated a held slot presenting as a
+timeout, and on this unit it presents as a refusal — which is also why every reload loses telnet
+for ~60 s, and why the recovery watcher earns its place.
 
 ## Still outstanding — these need hands or eyes on the hardware
 

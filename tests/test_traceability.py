@@ -53,9 +53,7 @@ RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
 #: * **T-L** is the live tier. These cannot run in CI by construction: they need the real matrix,
 #:   and several of them are disruptive enough to need someone present (T-L2 blanks a display;
 #:   T-L4 pulls power). They are checked off by hand in the doc, with evidence.
-DEFERRED: dict[str, str] = {
-    "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
-}
+DEFERRED: dict[str, str] = {}
 
 #: Live scenarios that have been run against real hardware, and what was observed.
 #:
@@ -74,6 +72,15 @@ VERIFIED_LIVE: dict[str, str] = {
     "T-L3": (
         "2026-08-29: routed an output over the CGI interface so Home Assistant learned of it only "
         "by push. Reflected in 0.538 s, and 0.549 s on the restore, against a 2 s budget (S2)."
+    ),
+    "T-L4": (
+        "2026-08-29: cut power to the matrix for 30 s. First run failed and found three defects "
+        "-- the coordinator never caught telnet's errors, the change gate omitted `available` so "
+        "15 of 19 entities kept reporting through the outage, and the telnet client never "
+        "reconnected. Re-run on 0.3.0: unavailable at 13.7 s, recovered at 10.6 s and held, one "
+        "warning and zero tracebacks. P3 driven separately by holding the control socket from "
+        "another machine: repair issue raised on the fallback and cleared itself 70 s after the "
+        "socket was released."
     ),
     "T-L5": (
         "2026-08-29: installed from HACS as a custom repository on the live instance. Entry "
