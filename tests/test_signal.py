@@ -10,7 +10,7 @@ one took real hardware to find.
 dark read *Connected*. That is the one case the entity exists for, and it was inverted.
 
 The reason the suite never caught the second is in ``tools/fake_avpro.py``: it modelled a dark port
-as an empty string, which is not what an AC-MX44-AUHD does. Measured 2026-08-29 by unplugging a
+as an empty string, which is not what an AC-MX44-AUHD does. Measured 2026-08-31 by unplugging a
 source -- ``NO SIGNAL``, in words, and the format string back on replug.
 """
 

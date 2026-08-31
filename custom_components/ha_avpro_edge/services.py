@@ -119,7 +119,7 @@ def async_register_services(hass: HomeAssistant) -> None:
         politely ignored".
 
         **It is still not confirmation, and the asymmetry is worth stating.** A refusal shows up
-        here; an acceptance does not mean the matrix did anything. Measured 2026-08-29: setting an
+        here; an acceptance does not mean the matrix did anything. Measured 2026-08-31: setting an
         input's EDID to copy from an output returned ``supported: true``, ``outcome: ok`` and a
         body echoing the new value -- and every independent read for the next 45 seconds showed
         the old one. The reply reflects the request, not the device.

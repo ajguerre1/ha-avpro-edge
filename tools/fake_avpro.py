@@ -157,7 +157,7 @@ class MatrixModel:
     #: This used to be ``""``. That was invented, and it is the reason a whole class of defect
     #: passed the suite: every consumer tested ``bool(raw)``, which is correct for an empty string
     #: and wrong for the words the hardware actually sends. Unplugging a source on the live unit
-    #: produced the literal ``NO SIGNAL`` (T-L8, 2026-08-29), which is truthy -- so the binary
+    #: produced the literal ``NO SIGNAL`` (T-L8, 2026-08-31), which is truthy -- so the binary
     #: sensor said *Connected* and the media player said ``on`` for a port with the cable out.
     #:
     #: Same lesson as the TMDS tab the fake once served and the firmware does not have: a fake that

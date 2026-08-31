@@ -46,7 +46,7 @@ RANGE = re.compile(r"\bT-[A-Z]{1,2}[0-9]+\s*\.\.+\s*T?-?[A-Z]{0,2}[0-9]+\b")
 
 #: Scenarios that are declared but not yet implemented, each with the reason it is not.
 #:
-#: **Empty, as of 2026-08-29.** Every declared scenario is now either implemented in CI or carries
+#: **Empty, as of 2026-08-31.** Every declared scenario is now either implemented in CI or carries
 #: a dated observation in :data:`VERIFIED_LIVE`. This dict was written to shrink and it has:
 #: the last entries were the live tier -- blanking a display, cutting power, timing a front-panel
 #: backlight, unplugging a source -- and each of them needed a person at the hardware rather than
@@ -77,7 +77,7 @@ VERIFIED_LIVE: dict[str, str] = {
         "by push. Reflected in 0.538 s, and 0.549 s on the restore, against a 2 s budget (S2)."
     ),
     "T-L4": (
-        "2026-08-29: cut power to the matrix for 30 s. First run failed and found three defects "
+        "2026-08-31: cut power to the matrix for 30 s. First run failed and found three defects "
         "-- the coordinator never caught telnet's errors, the change gate omitted `available` so "
         "15 of 19 entities kept reporting through the outage, and the telnet client never "
         "reconnected. Re-run on 0.3.0: unavailable at 13.7 s, recovered at 10.6 s and held, one "
@@ -90,28 +90,28 @@ VERIFIED_LIVE: dict[str, str] = {
         "loaded, 55 entities registered, 12 enabled, identified as AC-MX44-AUHD V1.41 (S3)."
     ),
     "T-L2": (
-        "2026-08-29: turned an output's stream off with someone watching that display. It went "
+        "2026-08-31: turned an output's stream off with someone watching that display. It went "
         "black and came back. The switch held 'off' for 12.5 s -- eight times the 1.5 s overlay "
         "settle window -- so it was device truth rather than a remembered write, which is the "
         "whole reason telnet is primary. media_player reached OFF, the branch only stream can "
         "reach. Input signal was unaffected throughout, which also settles probe P10."
     ),
     "T-L6": (
-        "2026-08-29: timed the front panel backlight with someone standing at the matrix. T1 went "
+        "2026-08-31: timed the front panel backlight with someone standing at the matrix. T1 went "
         "dark at ~15 s and T3 at ~60 s, pinning both ends of the range, and T0 stayed lit well "
         "past 90 s -- longer than the longest timeout that exists, so it is not a timeout. "
         "'Always ON' confirmed, and T2 = 30 s follows by elimination. The four labels came from "
         "the vendor driver's list order and are now measured rather than inferred."
     ),
     "T-L7": (
-        "2026-08-29: pressed input 3's hot plug reset with a person watching the display. TMDS "
+        "2026-08-31: pressed input 3's hot plug reset with a person watching the display. TMDS "
         "off at +36 ms and on again 1002 ms later against a nominal HOT_PLUG_RESET_HOLD of 1.0 s "
         "-- the first measurement of that constant. The screen went black and recovered, which is "
         "what settles it: the state trace alone could not tell the matrix acting from the "
         "optimistic overlay publishing, because both produce an identical off/on pair."
     ),
     "T-L8": (
-        "2026-08-29: unplugged a source. The matrix reports a dark port as the literal string "
+        "2026-08-31: unplugged a source. The matrix reports a dark port as the literal string "
         "'NO SIGNAL' at 14:25:12 ET and the format string again on replug at 14:26:34 -- it "
         "blanks nothing. Refuted both halves of the question, which had assumed a blank field. "
         "bool('NO SIGNAL') is True, so the binary sensor read Connected and media_player read on "

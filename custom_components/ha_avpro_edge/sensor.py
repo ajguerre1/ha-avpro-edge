@@ -6,7 +6,7 @@ fields: any set of values written today is a bug on tomorrow's firmware, and thi
 vocabulary is not documented anywhere. Passing it through means a format nobody anticipated shows
 up as itself rather than as "unknown".
 
-**The four fields describe inputs.** Established 2026-08-29 by two observations that would have
+**The four fields describe inputs.** Established 2026-08-31 by two observations that would have
 come out reversed had they been outputs: unplugging the *source* on input 3 drove field 3 to
 ``NO SIGNAL`` (T-L8), and muting *output* 3's stream left field 3 unchanged (T-L2). The planning
 docs carried this as open probe P10, unanswerable from the CGI interface alone -- and it was,

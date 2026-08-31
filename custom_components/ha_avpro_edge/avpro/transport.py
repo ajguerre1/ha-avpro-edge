@@ -28,7 +28,7 @@ class TransportError(Exception):
     once-per-outage warning, and a full traceback logged at ERROR reading ``Unexpected error
     fetching data`` -- which describes a bug in the integration, not a matrix somebody unplugged.
 
-    Measured 2026-08-29, by cutting power to the real unit. The entities did go unavailable, so
+    Measured 2026-08-31, by cutting power to the real unit. The entities did go unavailable, so
     the fault was invisible from the outside; only the log said what had happened, and it said the
     wrong thing.
 

@@ -169,7 +169,7 @@ class LcdTimeout(StrEnum):
     n in 0-5 against the live matrix and read each back from ``GET STA`` -- 0-3 accepted, 4 and 5
     refused with the value staying at 3.
 
-    *What each one means* was **inferred** until 2026-08-29, from the manufacturer's own
+    *What each one means* was **inferred** until 2026-08-31, from the manufacturer's own
     control-system driver listing exactly these four in this order. Good corroboration, and still
     a guess: nothing on either wire can report a backlight, so an off-by-one in the list order
     would have produced four confidently wrong user-facing labels with no way to notice.
@@ -304,7 +304,7 @@ def edid_command(option: str, source: int) -> str:
 #: What the matrix puts in a signal field for a port carrying nothing.
 #:
 #: **Measured, not inferred.** Unplugging a source from the live AC-MX44-AUHD on V1.41 produced the
-#: literal ``NO SIGNAL``, and plugging it back produced the format string again (T-L8, 2026-08-29).
+#: literal ``NO SIGNAL``, and plugging it back produced the format string again (T-L8, 2026-08-31).
 #:
 #: Two guesses preceded that measurement and both were wrong. The question had been framed as
 #: whether a blank field meant "nothing connected" or "not measured" -- a false dichotomy, because

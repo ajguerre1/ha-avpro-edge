@@ -9,7 +9,7 @@ created: 2026-08-29
 
 # Live verification — every item run
 
-**Complete as of 2026-08-29, across 0.2.1, 0.3.0 and 0.3.1.** Every check on this page has been
+**Complete as of 2026-08-31, across 0.2.1, 0.3.0 and 0.3.1.** Every check on this page has been
 performed against the hardware, including the five that needed a person standing at the matrix.
 
 This was written while nothing had ever run against the matrix, on the principle that a passing
@@ -81,7 +81,7 @@ endpoint happens to be due.
 | O2 | Change a route from the matrix's **front panel** | ✅ **Pushes.** Reflected within ~1 s of the press |
 | O3 | Watch the log during a quiet minute | ✅ 3 minutes, ~144 signal polls, **zero** state writes |
 
-**O2, 2026-08-29.** A front-panel route change reached Home Assistant at `16:28:36.083` against a
+**O2, 2026-08-31.** A front-panel route change reached Home Assistant at `16:28:36.083` against a
 press reported at `16:28:37` — nominally *before* it, which is clock skew between the operator's
 watch and the instance, not a measurable latency. No figure is claimed from it.
 
@@ -113,7 +113,7 @@ seam, the coordinator and the entity in one motion, and it is the thing HTTP pol
 
 W5 is the settle-window measurement (25–404 ms, window 1.0 s) meeting reality.
 
-## Recovery (T-L4) — **run 2026-08-29, and it failed**
+## Recovery (T-L4) — **run 2026-08-31, and it failed**
 
 Power cut at 16:32:30, restored at 16:33:30. The most productive sixty seconds of the pass: it
 found three defects, two of them serious, and none of them reachable from CI.
