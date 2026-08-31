@@ -91,31 +91,41 @@ def test_signal_info_keeps_free_text_and_maps_blank_to_unknown() -> None:
 
 
 def test_a_blank_field_is_indistinguishable_from_an_unread_one() -> None:
-    """Pinned because it is a **conflation**, and one with a visible consequence.
+    """A conflation, and one that turned out not to matter -- for a reason worth recording.
 
-    A blank field and a port the device never reported both become ``None``, so the state layer
-    cannot tell "the matrix looked and there is nothing" from "nobody has asked yet". The two
-    bodies below differ -- one reports four ports, the other two -- and decode to the same thing
-    for ports 3 and 4.
+    A blank field and a port the device never reported both become ``None``. This was filed as
+    T-L8 on the assumption that the answer decided whether the signal binary sensor could ever say
+    *Disconnected*: either a blank meant "nothing connected" and the decode was throwing away a
+    real measurement, or a blank meant "not measured" and the sensor should not exist.
 
-    The consequence lands on ``binary_sensor.is_on``, which returns ``None`` for ``None`` and
-    ``bool(text)`` otherwise. A non-empty string is always truthy, so **the entity can return
-    True or None and never False**: a CONNECTIVITY binary sensor whose "Disconnected" state is
-    unreachable, while its own docstring offers "is the Apple TV awake" as the automation it
-    exists for.
+    **The measurement refuted both.** Unplugging a source on the live matrix produced the literal
+    string ``NO SIGNAL`` -- the device blanks nothing, it says so in words. So this conflation is
+    real and inconsequential, because the case it was thought to govern never arrives as a blank,
+    and the actual defect was ``bool("NO SIGNAL")`` being ``True`` in every consumer.
 
-    Not changed here, deliberately. Preserving the distinction is a one-line change with no blast
-    radius -- media_player already tests truthiness, and the sensor maps blank to None itself --
-    but whether a real AC-MX44-AUHD returns blank for an unplugged input or for a port it does
-    not measure is **not established**, and "Disconnected" would be a false claim under the second
-    reading. It is a hardware observation, not a code decision, and it is on the live checklist.
-    Inverting it on a guess is exactly how the fake came to serve a TMDS tab V1.41 does not have.
+    Kept as a pin on the decode's behaviour, and as a reminder that the question was a false
+    dichotomy. Guessing an answer would have changed this function and fixed nothing.
     """
     four_ports_one_blank = _decode(StatusEndpoint.INFO, "INFSta=a&b&&d&").values
     only_two_reported = _decode(StatusEndpoint.INFO, "INFSta=a&b").values
 
-    assert four_ports_one_blank["signal_3"] is None, "the device said this port has nothing"
-    assert only_two_reported["signal_3"] is None, "the device said nothing about this port"
+    assert four_ports_one_blank["signal_3"] is None
+    assert only_two_reported["signal_3"] is None
+
+
+def test_the_measured_no_signal_token_survives_decode_as_itself() -> None:
+    """It must reach the entities as text, not be normalised away at the seam.
+
+    The sensor shows it -- "NO SIGNAL" is a more useful thing to read on a dashboard than
+    "unknown" -- and ``signal_present`` is what turns it into a boolean, once, where the meaning
+    lives. Collapsing it to ``None`` here would lose the difference between a port the matrix
+    reported as dark and one it never reported at all, which is the distinction this whole
+    module exists to preserve.
+    """
+    values = _decode(StatusEndpoint.INFO, "INFSta=3840X2160P@60HZ YUV420&NO SIGNAL&&d&").values
+    assert values["signal_1"] == "3840X2160P@60HZ YUV420"
+    assert values["signal_2"] == "NO SIGNAL"
+    assert values["signal_3"] is None
 
 
 def test_a_short_signal_body_is_padded_not_truncated() -> None:

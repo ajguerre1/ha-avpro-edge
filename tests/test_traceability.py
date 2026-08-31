@@ -58,11 +58,6 @@ DEFERRED: dict[str, str] = {
     "T-L4": "live tier: pulling power to the matrix cannot be done from CI",
     "T-L6": "live tier: the LCD backlight timeout is only observable by a person at the matrix",
     "T-L7": "live tier: only a real source can show whether it noticed the hot-plug drop",
-    "T-L8": (
-        "live tier: what the matrix puts in a signal field for an input with nothing plugged "
-        "into it. Only unplugging something answers it, and the answer decides whether a blank "
-        "may be reported as Disconnected"
-    ),
 }
 
 #: Live scenarios that have been run against real hardware, and what was observed.
@@ -86,6 +81,13 @@ VERIFIED_LIVE: dict[str, str] = {
     "T-L5": (
         "2026-08-29: installed from HACS as a custom repository on the live instance. Entry "
         "loaded, 55 entities registered, 12 enabled, identified as AC-MX44-AUHD V1.41 (S3)."
+    ),
+    "T-L8": (
+        "2026-08-29: unplugged a source. The matrix reports a dark port as the literal string "
+        "'NO SIGNAL' at 14:25:12 ET and the format string again on replug at 14:26:34 -- it "
+        "blanks nothing. Refuted both halves of the question, which had assumed a blank field. "
+        "bool('NO SIGNAL') is True, so the binary sensor read Connected and media_player read on "
+        "for a port with the cable out; fixed by avpro.models.signal_present."
     ),
 }
 

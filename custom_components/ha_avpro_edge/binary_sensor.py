@@ -16,6 +16,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AvProConfigEntry
+from .avpro.models import signal_present
 from .const import KEY_SIGNAL, port_key
 from .coordinator import AvProCoordinator
 from .entity import AvProEntity
@@ -63,19 +64,26 @@ class AvProSignalPresent(AvProEntity, BinarySensorEntity):
     def is_on(self) -> bool | None:
         """``None`` until this port's signal has actually been read.
 
-        The guard used to be ``if not signals``, which is a different question and the wrong one.
-        An unread series is not empty -- it is a tuple of ``None`` per port, which is truthy -- so
-        the check passed and ``bool(None)`` reported **every port as disconnected**, confidently
-        and permanently, on any transport that could not read signal at all. An automation
-        conditioned on "no signal" would have fired against a matrix whose ports were all live.
+        This property has been wrong in both directions, which is worth recording together because
+        they are the same mistake seen from either side.
 
-        The distinction is the one this whole integration is built on: absence is not off.
+        First it asked ``if not signals``, a different question: an unread series is not empty, it
+        is a tuple of ``None`` per port, which is truthy. So the check passed and ``bool(None)``
+        reported **every port disconnected**, permanently, on any transport that could not read
+        signal.
+
+        Then it asked ``bool(detected)``, which is right for a format string and wrong for the one
+        case this entity exists to report: the matrix says ``NO SIGNAL`` in words, and a non-empty
+        string is truthy, so a port with the cable pulled out read **Connected**. Measured on the
+        hardware, not reasoned about -- see :func:`avpro.models.signal_present`.
+
+        The distinction is the one this whole integration is built on, and it needs three values,
+        not two: absence is not off, and off is not a truthy string.
         """
         signals = self.coordinator.matrix.signals
         if not 1 <= self._port <= len(signals):
             return None
-        detected = signals[self._port - 1]
-        return None if detected is None else bool(detected)
+        return signal_present(signals[self._port - 1])
 
     def _state_snapshot(self) -> bool | None:
         """What this entity renders -- **not** what its key says.

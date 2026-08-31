@@ -152,8 +152,24 @@ class MatrixModel:
     lcd_timeout: int = 2
     #: EDID as telnet numbers it, 0-32. 30 is USER1_EDID, the same EDID HTTP calls EDIDU1.
     edid_index: list[int] = field(default_factory=lambda: [30] * 4)
+    #: Port 3 is dark, and it is dark the way the real matrix says so.
+    #:
+    #: This used to be ``""``. That was invented, and it is the reason a whole class of defect
+    #: passed the suite: every consumer tested ``bool(raw)``, which is correct for an empty string
+    #: and wrong for the words the hardware actually sends. Unplugging a source on the live unit
+    #: produced the literal ``NO SIGNAL`` (T-L8, 2026-08-29), which is truthy -- so the binary
+    #: sensor said *Connected* and the media player said ``on`` for a port with the cable out.
+    #:
+    #: Same lesson as the TMDS tab the fake once served and the firmware does not have: a fake that
+    #: models a device more conveniently than the device behaves makes the suite agree with the
+    #: model rather than with the hardware.
     signals: list[str] = field(
-        default_factory=lambda: ["3840X2160P@60HZ YUV420", "1920X1080P@60HZ", "", "1920X1080P@60HZ"]
+        default_factory=lambda: [
+            "3840X2160P@60HZ YUV420",
+            "1920X1080P@60HZ",
+            "NO SIGNAL",
+            "1920X1080P@60HZ",
+        ]
     )
 
     def widen(self, ports: int, model: str) -> None:

@@ -35,6 +35,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AvProConfigEntry
+from .avpro.models import signal_present
 from .const import KEY_STREAM, KEY_VIDEO_ROUTE, port_key
 from .coordinator import AvProCoordinator
 from .entity import AvProEntity
@@ -113,13 +114,19 @@ class AvProOutput(AvProEntity, MediaPlayerEntity):
         ``IDLE`` rather than ``OFF`` for a routed output with no signal: nothing has been turned
         off. The output is working and the source at the other end is asleep or unplugged.
         Reporting ``OFF`` there would imply this integration could wake it, which it cannot.
+
+        That paragraph described behaviour this property did not have. The test was
+        ``signals[routed - 1]`` -- truthiness on free text -- and the matrix reports a dark port as
+        the string ``NO SIGNAL``, which is truthy. So the exact case the docstring is about
+        reported ``ON``. Measured, not reasoned about: an output held ``on`` for 82 seconds while
+        its source sat unplugged. See :func:`avpro.models.signal_present`.
         """
         if self.coordinator.optimistic(self._stream_key) is False:
             return MediaPlayerState.OFF
 
         signals = self.coordinator.matrix.signals
         routed = self.coordinator.optimistic(self._key)
-        if routed and 1 <= routed <= len(signals) and signals[routed - 1]:
+        if routed and 1 <= routed <= len(signals) and signal_present(signals[routed - 1]):
             return MediaPlayerState.ON
         return MediaPlayerState.IDLE
 

@@ -50,55 +50,95 @@ async def test_a_port_carrying_something_reports_on(
     assert hass.states.get(BINARY).state == STATE_ON
 
 
-async def test_a_port_carrying_nothing_currently_reports_unknown(
+async def test_an_unplugged_source_reports_disconnected(
     hass: HomeAssistant, fake, loaded_entry
 ) -> None:
-    """This asserted `off` first, and `off` is unreachable.
+    """The case this entity exists for, and the one it used to get backwards.
 
-    An empty field is a real measurement -- the matrix looked and there was nothing -- but
-    `_decode_info` maps it to `None`, the same value as a port never read. `is_on` then answers
-    `None`, so a CONNECTIVITY binary sensor never reaches "Disconnected" on any transport.
+    The matrix reports a dark port as the string ``NO SIGNAL``, measured by pulling a cable on the
+    live unit. Every consumer tested ``bool(raw)``, a non-empty string is truthy, so the sensor
+    said **Connected for a port with nothing plugged into it**.
 
-    Pinned as it behaves rather than as it arguably should, because which of the two is right
-    depends on what a real matrix returns for an unplugged input -- an observation nobody has
-    made yet. See `test_a_blank_field_is_indistinguishable_from_an_unread_one`. If that is
-    settled and the decode changes, this test failing is the correct outcome, not collateral.
+    This test asserted `unknown` before that measurement, and before it asserted `off` and failed.
+    Both were guesses about a device nobody had asked.
     """
     await _enable_binary_sensors(hass, loaded_entry)
     coordinator = loaded_entry.runtime_data.coordinator
     assert hass.states.get(BINARY).state == STATE_ON
 
-    fake.state.signals = ["", "", "", ""]
+    fake.state.signals = ["NO SIGNAL"] * 4
     await coordinator.async_refresh()
     await hass.async_block_till_done()
 
     # Asserted separately, so a failure says whether the reading reached the coordinator or
     # reached it and then failed to reach the entity.
-    assert coordinator.matrix.signals == (None, None, None, None)
-    assert hass.states.get(BINARY).state == STATE_UNKNOWN
+    assert coordinator.matrix.signals == ("NO SIGNAL",) * 4
+    assert hass.states.get(BINARY).state == STATE_OFF
 
 
-async def test_off_is_currently_unreachable_whatever_the_matrix_says(
-    hass: HomeAssistant, fake, loaded_entry
-) -> None:
-    """The consequence, stated as an assertion so it cannot be forgotten.
+async def test_all_three_states_are_reachable(hass: HomeAssistant, fake, loaded_entry) -> None:
+    """Every answer the entity can give, driven through the real platform.
 
-    Every value `is_on` can return, over every signal string the device could plausibly send.
-    `STATE_OFF` is absent from the results -- not because no case produces it, but because none
-    can.
+    An earlier version of this test asserted that `off` was **unreachable** -- true at the time,
+    and a fair description of a connectivity sensor that could not report disconnection. It is
+    the assertion that had to fail for the entity to start working.
     """
     await _enable_binary_sensors(hass, loaded_entry)
     coordinator = loaded_entry.runtime_data.coordinator
 
-    seen = set()
-    for reading in ("3840X2160P@60HZ YUV420", "", "1920X1080P@60HZ", "NO SIGNAL"):
+    seen = {}
+    for reading, expected in (
+        ("3840X2160P@60HZ YUV420", STATE_ON),
+        ("NO SIGNAL", STATE_OFF),
+        ("1920X1080P@60HZ", STATE_ON),
+        ("", STATE_UNKNOWN),  # never observed on this firmware; must not read as darkness
+    ):
         fake.state.signals = [reading] * 4
         await coordinator.async_refresh()
         await hass.async_block_till_done()
-        seen.add(hass.states.get(BINARY).state)
+        seen[reading] = hass.states.get(BINARY).state
+        assert seen[reading] == expected, f"{reading!r} rendered {seen[reading]}"
 
-    assert STATE_OFF not in seen, "off became reachable -- update the decode note and delete this"
-    assert seen == {STATE_ON, STATE_UNKNOWN}
+    assert set(seen.values()) == {STATE_ON, STATE_OFF, STATE_UNKNOWN}
+
+
+async def test_a_routed_output_with_a_dark_source_is_idle_not_on(
+    hass: HomeAssistant, fake, loaded_entry
+) -> None:
+    """The same defect in `media_player.state`, which had it in its own docstring.
+
+    "IDLE rather than OFF for a routed output with no signal: the output is working and the source
+    at the other end is asleep or unplugged." The check behind that sentence was truthiness on the
+    signal string, so with ``NO SIGNAL`` it answered ``on``.
+
+    Measured live: an output held ``on`` for 82 seconds while its source sat unplugged.
+    """
+    coordinator = loaded_entry.runtime_data.coordinator
+    output = "media_player.ac_mx44_auhd_output_1"
+    assert hass.states.get(output).state == "on"
+
+    fake.state.signals = ["NO SIGNAL"] * 4
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(output).state == "idle"
+
+
+async def test_the_sensor_shows_the_matrixs_own_words(
+    hass: HomeAssistant, fake, loaded_entry
+) -> None:
+    """`NO SIGNAL` is a better thing to read on a dashboard than `unknown`.
+
+    The boolean lives in the binary sensor; the sensor's job is to pass through what the device
+    said. Normalising here would lose the difference between a port reported dark and one never
+    reported at all.
+    """
+    coordinator = loaded_entry.runtime_data.coordinator
+    fake.state.signals = ["NO SIGNAL"] * 4
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.ac_mx44_auhd_port_1_signal").state == "NO SIGNAL"
 
 
 async def test_a_port_never_read_reports_unknown_not_off(hass: HomeAssistant) -> None:

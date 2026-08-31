@@ -40,6 +40,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .avpro import state as st
 from .avpro.client import AvProConnectionError, AvProWritesDisabled
 from .avpro.http_transport import HttpTransport, UnsupportedCommand
+from .avpro.models import signal_present
 from .avpro.pending import PendingWrites
 from .avpro.report import DeviceReport
 from .avpro.state import MatrixState
@@ -340,13 +341,12 @@ class AvProCoordinator(DataUpdateCoordinator[MatrixState]):
                 "audio": list(state.series("audio_route")),
                 "bind_mode": state.bind_mode,
             },
-            # `None` for a port whose signal has never been read, never `False`. The binary
-            # sensor carried this exact defect -- `bool(None)` is `False`, so an unread port
-            # reported "no signal" rather than "not known" -- and fixing it there left the
-            # identical expression here. This is the worse of the two places for it: a
-            # diagnostics dump is written to be pasted into a bug report by someone who will
-            # not read it first, so a confident wrong fact here misdirects whoever reads it.
-            "signal_present": [None if s is None else bool(s) for s in state.signals],
+            # Three values, never two. `bool()` here was wrong twice over: `bool(None)` turned an
+            # unread port into a confident `false`, and `bool("NO SIGNAL")` turned a genuinely
+            # dark port into `true`. This is the worst place to get it wrong -- a diagnostics dump
+            # is written to be pasted into a bug report by someone who will not read it first, so
+            # it hands whoever is helping a confident wrong fact about the thing being reported.
+            "signal_present": [signal_present(s) for s in state.signals],
         }
         if isinstance(self.transport, HttpTransport):
             report["http"] = {

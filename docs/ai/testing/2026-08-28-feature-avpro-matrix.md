@@ -156,15 +156,18 @@ dependency when nothing is left that only the driver can do.
 - [ ] T-L6 Someone watches the front panel and confirms `T0` really is *Always ON* — the option
       count is measured, but the labels come from the vendor driver's list order and cannot be
       observed over either wire
-- [ ] T-L8 Unplug a source and read `INFDivSta.CGI` — does the matrix return an **empty field**
-      for that input, or does it leave the field alone? `_decode_info` maps a blank to `None`,
-      the same value as a port never read, so `binary_sensor.is_on` returns `True` or `None` and
-      **never `False`**: a CONNECTIVITY sensor whose *Disconnected* state is unreachable. If a
-      blank means "nothing connected", the decode should keep it and the sensor gains its
-      negative. If a blank is what the device sends for a port it did not measure, the present
-      behaviour is right and the binary sensor is the thing that should not exist. Nothing on
-      either wire distinguishes the two, and inverting it on a guess is how the fake came to
-      serve a TMDS tab this firmware does not have
+- [x] T-L8 Unplug a source and see what the matrix reports for that input
+      *2026-08-29: **`NO SIGNAL`**, as a literal string — at 14:25:12 ET on the unplug, and the
+      format string back at 14:26:34 on the replug. The question was framed as whether a blank
+      field meant "nothing connected" or "not measured"; **both were wrong**, because the device
+      blanks nothing. It says so in words. Not guessing was the whole value of filing it: either
+      answer would have changed `_decode_info` and fixed nothing.*
+      *The real defect was one line further on. `bool("NO SIGNAL")` is `True`, so every consumer
+      of a signal field — the binary sensor, `media_player.state`, and the diagnostics dump —
+      reported a port with the cable out as **carrying a picture**. An output held `on` for 82
+      seconds while its source sat unplugged. The suite passed throughout because the fake
+      modelled a dark port as `""`, which is falsy and is not what this hardware sends. Same
+      failure as the TMDS tab: agreeing with a convenient model rather than the device.*
 
 ## Test Data
 

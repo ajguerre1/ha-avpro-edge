@@ -99,19 +99,18 @@ async def test_an_unread_port_is_not_reported_as_having_no_signal(hass: HomeAssi
         assert payload["matrix"]["signal_present"] == [None, None, None, None]
 
 
-async def test_a_measured_port_still_reports_a_boolean(
+async def test_the_dump_distinguishes_all_three_signal_states(
     hass: HomeAssistant, fake, loaded_entry
 ) -> None:
     """Guards the fix above: returning `None` unconditionally would pass it too.
 
-    Port 3 is `None` and that is the fake being faithful -- its default signal list leaves that
-    port blank, and a blank field decodes to `None` rather than to "nothing here". So this row
-    also happens to record the conflation documented in
-    `tests/test_http_decode.py::test_a_blank_field_is_indistinguishable_from_an_unread_one`: in a
-    dump meant to help somebody debug, port 3 reads the same as a port never polled.
+    Port 3 is the fake's dark port and reports `False` -- because the matrix says `NO SIGNAL` in
+    words, not by blanking the field. `bool()` here was wrong twice: `bool(None)` made an unread
+    port look dark, and `bool("NO SIGNAL")` made a dark port look live. In a dump written to be
+    pasted into a bug report, either one sends the reader somewhere else.
     """
     payload = await async_get_config_entry_diagnostics(hass, loaded_entry)
-    assert payload["matrix"]["signal_present"] == [True, True, None, True]
+    assert payload["matrix"]["signal_present"] == [True, True, False, True]
 
 
 async def test_it_is_json_serialisable(hass: HomeAssistant, fake, loaded_entry) -> None:

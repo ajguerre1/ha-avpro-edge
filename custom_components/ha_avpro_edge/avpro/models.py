@@ -294,6 +294,54 @@ def edid_command(option: str, source: int) -> str:
 
 
 # ---------------------------------------------------------------------------------------------
+# Detected signal -- free text, with one token that means "nothing"
+# ---------------------------------------------------------------------------------------------
+
+
+#: What the matrix puts in a signal field for a port carrying nothing.
+#:
+#: **Measured, not inferred.** Unplugging a source from the live AC-MX44-AUHD on V1.41 produced the
+#: literal ``NO SIGNAL``, and plugging it back produced the format string again (T-L8, 2026-08-29).
+#:
+#: Two guesses preceded that measurement and both were wrong. The question had been framed as
+#: whether a blank field meant "nothing connected" or "not measured" -- a false dichotomy, because
+#: the device blanks nothing. It says so in words.
+#:
+#: A set rather than a constant because this is one firmware on one model, and the AUHD family does
+#: not share a vocabulary. A spelling nobody has seen must read as *some signal* rather than as
+#: none: reporting a port live when it is dark is a smaller lie than reporting it dark when it is
+#: carrying a picture, because only the second makes an automation act.
+NO_SIGNAL_TOKENS: Final[frozenset[str]] = frozenset({"NO SIGNAL"})
+
+
+def signal_present(raw: str | None) -> bool | None:
+    """Whether a port is carrying a picture. Three answers, and all three are distinct.
+
+    * ``None`` -- never read. Absence of a reading, not a reading of absence.
+    * ``False`` -- the matrix looked and reported nothing.
+    * ``True`` -- a real format string.
+
+    Every caller used to ask ``bool(raw)`` instead, which is right for exactly two of those and
+    catastrophically wrong for the third: ``NO SIGNAL`` is a non-empty string, so **the one case
+    this distinction exists for reported "signal present"**. The signal binary sensor said
+    *Connected* for a port with a cable hanging out of it, and ``media_player.state`` said ``on``
+    for an output whose source was unplugged -- the exact case its own docstring describes as
+    ``IDLE``.
+
+    Nothing caught it because the fake device modelled "no signal" as an empty string, which is not
+    what this hardware does. The suite agreed with the model perfectly.
+    """
+    if raw is None:
+        return None
+    text = raw.strip()
+    if not text:
+        # Not observed on this firmware -- it says NO SIGNAL rather than sending an empty field --
+        # so an empty one is a body we do not understand, and that is not the same as darkness.
+        return None
+    return text.upper() not in NO_SIGNAL_TOKENS
+
+
+# ---------------------------------------------------------------------------------------------
 # Generic helpers
 # ---------------------------------------------------------------------------------------------
 
