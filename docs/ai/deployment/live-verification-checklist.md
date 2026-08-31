@@ -1,21 +1,36 @@
 ---
 phase: deployment
-title: Live verification checklist — 0.2.1
+title: Live verification checklist — complete through 0.3.1
 description: Every assumption a single pass against the real matrix has to settle
 feature: avpro-matrix
-status: partly-verified
+status: verified
 created: 2026-08-29
 ---
 
-# Live verification — 0.2.1
+# Live verification — every item run
 
-**Run 2026-08-29. Everything that can be driven from software passes; what remains needs hands or
-eyes on the hardware.**
+**Complete as of 2026-08-29, across 0.2.1, 0.3.0 and 0.3.1.** Every check on this page has been
+performed against the hardware, including the five that needed a person standing at the matrix.
 
 This was written while nothing had ever run against the matrix, on the principle that a passing
-test suite is a statement about a *model* of the device rather than about the device. That gap is
-now largely closed, and the model held up: the entity count, the transport choice and the signal
+test suite is a statement about a *model* of the device rather than about the device. The first
+pass suggested the model was sound — the entity count, the transport choice and the signal
 supplement were all right on first contact.
+
+**The second pass found five defects, and the suite was green through every one of them.** The
+model was right about what the integration does and wrong about what the device does, which is
+exactly the gap a test suite cannot see:
+
+| Defect | Why CI could not reach it |
+|---|---|
+| `bool("NO SIGNAL")` is `True` — two entities and the diagnostics dump reported a dark port as carrying a picture | The fake modelled darkness as `""`, which is falsy. The suite agreed with a device that does not exist |
+| The coordinator caught only the HTTP wire's exception types | Telnet became primary and the handler was never revisited. The error path runs only when something has already gone wrong |
+| The change gate omitted `available`, so 15 of 19 entities reported through an outage | Nothing had ever made the coordinator fail while entities were watched |
+| The telnet client never reconnected — `BACKOFF` and `backoff_delay()` were never called by anything | A ladder nothing climbed looks identical to a ladder nobody needed |
+| The signal binary sensor's change gate never fired at all | A gate that never fires is indistinguishable from a value that never changes |
+
+Three of the five live on paths that run only after something else has failed — the same class as
+`HttpTransport` having no `connected` attribute for seven commits.
 
 Two figures are worth carrying forward, because they are the ones no test could have produced:
 
@@ -187,41 +202,53 @@ Worth recording separately: a second telnet connection while Home Assistant hold
 timeout, and on this unit it presents as a refusal — which is also why every reload loses telnet
 for ~60 s, and why the recovery watcher earns its place.
 
-## Still outstanding — these need hands or eyes on the hardware
+## The items that needed a person — all run
 
-| # | Check | Why it needs you |
+| # | What was settled | Result |
 |---|---|---|
-| **T-L2** | `switch.*_output_1_stream` off, then on | **Blanks a real display.** Do it on a screen you can see |
-| **T-L6** | `select.*_front_panel_backlight` → each of the four | **The labels are inferred.** The count is measured (T0–T3 accepted, T4/T5 refused) but *Always ON / 15s / 30s / 60s* comes from AVPro's own driver listing them in that order. Only someone watching the front panel can confirm `T0` really is always-on |
-| **T-L7** | `button.*_input_N_hot_plug_reset` on an input with a fussy source | **`HOT_PLUG_RESET_HOLD` is the one unmeasured constant here.** 1.0 s is conventional, not observed. If the source does not renegotiate, it is too short |
-| **T-L8** | **Unplug one source**, then read the signal sensors and the matrix's own web page | **Decides whether the signal binary sensor can ever say *Disconnected*.** A blank field currently decodes to the same `None` as a port never read, so `is_on` returns `True` or `None` and never `False`. Cheapest test on this list — pull one HDMI cable and look |
+| **T-L2** | Stream toggle, on a display someone could see | Went black and came back. Held `off` for **12.5 s**, eight times the overlay window, so it was device truth |
+| **T-L6** | Whether `T0` really is *Always ON* | `T1` 15 s, `T3` 60 s, `T0` still lit past 90 s. **Confirmed**, `T2` = 30 s by elimination |
+| **T-L7** | `HOT_PLUG_RESET_HOLD`, the last unmeasured constant | **1.002 s** against a nominal 1.0. Display blacked and recovered, which is what settles it |
+| **T-L8** | What the matrix reports for an unplugged input | The literal string **`NO SIGNAL`**. It blanks nothing |
+| **T-L4 / P1–P3** | Power cycle | Failed, found three defects, fixed, re-run passes |
 
-## Known-unvalidated assumptions
+## Assumptions, and what became of them
 
-Listed plainly, because these are what a single pass is for:
+Listed plainly, because this is what a pass against hardware is for. Four of the five moved.
 
-1. **The signal supplement's cadence.** Signal polls over HTTP on the 5 s profile while telnet
-   carries everything else. Load on the device has never been observed with both wires active.
-2. **The LCD label ordering** — T-L6 above. Measured count, inferred meaning.
-3. **The hot-plug hold time** — T-L7 above. A property of the source, unobservable from here.
-4. **`route_all` on telnet.** The `x=0 means ALL` form is documented in the help but the matching
-   `GET` returned nothing on this firmware, so the coordinator falls back to one command per
-   output. If W3 shows four telnet commands rather than one, that is expected and correct.
-5. **Port renaming.** Not implemented; still gated on probe P11 (percent-encoding is the riskiest
-   write class, and the endpoint writes all eight names at once).
+1. **The signal supplement's cadence with both wires active.** ⚠️ **Still open, and now with
+   evidence of a real hazard.** Port 1's signal field has twice been observed carrying telnet
+   vocabulary — `3840X2160P@60IN1 VID F` for at least twelve hours, and `3840X2160P@60HZ YUVIN1`
+   after a power cycle. Telnet text in a field read over HTTP, on the same port both times, which
+   looks like the device sharing a buffer between its CGI and control subsystems. The clean test is
+   the `http` escape hatch: run with port 23 untouched and see whether it recurs.
+2. **The LCD label ordering.** ✅ Measured (T-L6). Was a count with an inferred meaning.
+3. **The hot-plug hold time.** ✅ Measured at 1.002 s (T-L7).
+4. **`route_all` on telnet.** ✅ The per-output fallback is what runs, as expected.
+5. **Port renaming.** Still not implemented, still gated on probe P11. Unchanged, and deliberate.
 
-## What the run changed
+## What the hardware changed that no test could
 
-- **T-L1, T-L3 and T-L5 are ticked**, each with its observation recorded in `VERIFIED_LIVE` in
-  `tests/test_traceability.py`. The live tier used to sit outside that mechanism, so running a
-  scenario by hand left it looking undone for ever; a ticked box must now be backed by a test *or*
-  by a dated observation, and the build fails on a claim with neither.
-- **O2, P1–P3, T-L2, T-L6 and T-L7 remain.** Each needs someone at the matrix: pressing a front
-  panel button, cutting power, watching a screen go dark, or seeing a backlight time out.
-- **Nothing surprised us**, so no new fake fault was needed — the first run of this checklist that
-  could have said otherwise.
+- **Probe P10 is settled**: `INFSta` reports **inputs**. Unplugging a source drove its field to
+  `NO SIGNAL`; muting the corresponding output left it unchanged. Both results would have been
+  reversed for outputs. The planning docs carried this as unanswerable from the CGI interface
+  alone, which was true — reading the interface was never going to settle it.
+- **The telnet port refuses connections for ~60 s after a disconnect** — `ECONNREFUSED`, not a
+  timeout. The design anticipated a held slot presenting as a timeout. This is why every reload
+  loses telnet for about a minute, and why the recovery watcher is load-bearing rather than
+  belt-and-braces.
+- **A `send_command` reply is an echo, not a read-back.** An EDID write returned `ok` with the new
+  value visible, never applied it, and blanked a television on the way past — leaving no trace in
+  the device's state, the signal readings, or Home Assistant. Documented in the README as a hazard.
+- **The `never-apply` fake fault happened for real**, in that same EDID write. The overlay held the
+  commanded value, took device truth when the read disagreed, and did not re-send it.
 
-## Still to do after those
+## Still open
 
-- Update the deployment tracking with the remaining observations
-- Anything that surprises us becomes a fake fault, so it cannot surprise us twice
+- **The port 1 corruption** (assumption 1 above). Reproduced twice, cause unconfirmed.
+- **`3840X2160P@62HZ` on port 3.** Not a standard rate and not an Apple TV output mode; survives an
+  EDID change and repeated renegotiation, with all four inputs now on the same EDID. Owner's
+  reading is a firmware reporting quirk, and the evidence supports it. The unit is **discontinued**
+  with no entry at all on AVPro's firmware index, so there is no fix coming — the successor is
+  different hardware and must not be cross-flashed.
+- Anything that surprises us next becomes a fake fault, so it cannot surprise us twice.

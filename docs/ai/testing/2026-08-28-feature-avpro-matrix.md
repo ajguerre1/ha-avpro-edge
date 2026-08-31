@@ -242,6 +242,33 @@ feature, in the deployment plan.
 
 # Execution Results
 
-Recorded per run once M-B begins. The offline and HA-layer suites currently stand at **298 tests
-passing in CI**, covering the HTTP transport delivered in M-A; the scenarios above are additions
-to that baseline, not a replacement for it.
+**568 tests passing in CI at 0.3.1, 96% coverage**, enforced at the Silver bar by
+`--cov-fail-under=95` rather than quoted in a comment. The figure that stood here for most of this
+feature's life said 298, which was true when written and then simply rotted — the same defect as
+the quality-scale file's, and the reason coverage is now a threshold rather than a sentence.
+
+**Every declared scenario is accounted for.** `DEFERRED` in `tests/test_traceability.py` is empty:
+each one is either implemented in CI or carries a dated observation in `VERIFIED_LIVE`.
+
+## What running the live tier actually bought
+
+Worth recording, because the offline suite was green throughout and the temptation is to treat that
+as evidence.
+
+The live tier found **five defects**, and CI could not have reached any of them:
+
+| Defect | Why the suite agreed anyway |
+|---|---|
+| `bool("NO SIGNAL")` is `True`, so two entities and the diagnostics dump reported a dark port as carrying a picture | The fake modelled darkness as `""`, which is falsy — the suite agreed with a device that does not exist |
+| The coordinator caught only the HTTP wire's exception types | Telnet became primary and the handler was never revisited; the path runs only after a failure |
+| The change gate omitted `available`, so 15 of 19 entities reported normally through an outage | Nothing had ever failed the coordinator while entities were watched |
+| The telnet client never reconnected — `BACKOFF` and `backoff_delay()` were called by nothing | A ladder nothing climbs looks exactly like a ladder nobody needs |
+| The signal binary sensor's change gate never fired | A gate that never fires is indistinguishable from a value that never changes |
+
+Two shapes recur and are worth naming, because they will recur again:
+
+1. **Paths that run only after something has already gone wrong** — three of the five. The same
+   class as `T-T1` and the missing `connected` attribute that motivated the traceability module.
+2. **The fake being more convenient than the device.** Twice now: a `TMDSDivSta` tab this firmware
+   does not have, and an empty string for a port the matrix describes in words. A fixture is a
+   claim about hardware, and an unverified one makes the whole suite agree with a fiction.

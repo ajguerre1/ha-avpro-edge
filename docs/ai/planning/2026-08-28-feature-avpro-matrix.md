@@ -25,8 +25,13 @@ Testing: `docs/ai/testing/2026-08-28-feature-avpro-matrix.md`
       `turn_on`/`turn_off`.
 - [x] **M-G — Control-system parity.** Input hot plug reset and `send_command`, so the driver can go.
       Added 2026-08-29 with goal G6; it did not exist when this plan was written.
-- [ ] **M-F — Verified on the live unit** and released. *(0.2.1 is released; nothing is verified
-      on hardware, which is the whole of what remains.)*
+- [x] **M-F — Verified on the live unit** and released. *(Complete 2026-08-29 at **0.3.1**. Every
+      item on `docs/ai/deployment/live-verification-checklist.md` has been run against the hardware,
+      including the five needing a person at the matrix, and `DEFERRED` in the traceability module
+      is empty. The pass found **five defects the green suite could not reach** — see the checklist
+      and the Execution Results in the testing doc. Three of them lived on paths that run only
+      after something has already gone wrong; two came from the fake modelling the device more
+      conveniently than the device behaves.)*
 
 ## Task Breakdown
 
